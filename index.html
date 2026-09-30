@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>2047: The Great Space Expedition</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="game-container">
+  <canvas id="game-canvas"></canvas>
+  <div id="ui-root">
+    <div id="hud" class="hidden">
+      <div id="hud-top">
+        <div id="hud-destination">
+          <span class="hud-label">DESTINATION</span>
+          <span id="hud-dest-name">Earth Orbit</span>
+        </div>
+        <div id="hud-status">
+          <div class="status-item"><span class="status-icon">&#9881;</span><span id="status-hull">100%</span></div>
+          <div class="status-item"><span class="status-icon">&#9889;</span><span id="status-power">100%</span></div>
+          <div class="status-item"><span class="status-icon">&#9992;</span><span id="status-signal">100%</span></div>
+          <div class="status-item"><span class="status-icon">&#9679;</span><span id="status-fuel">100%</span></div>
+        </div>
+        <div id="hud-rank">
+          <span class="hud-label">RANK</span>
+          <span id="hud-rank-name">Cadet Explorer</span>
+        </div>
+      </div>
+      <div id="hud-objective">
+        <div class="objective-title">MISSION</div>
+        <div id="objective-text">Launch Prep</div>
+        <div id="objective-steps"></div>
+      </div>
+      <div id="hud-kora-mini">
+        <div id="kora-mini-avatar"><img src="assets/img/kora.svg" alt="KORA"></div>
+        <div id="kora-mini-text">KORA online.</div>
+      </div>
+      <div id="hud-actions">
+        <button class="action-btn" id="btn-scan" title="Scan (Q)"><span class="action-icon">&#8982;</span><span class="action-label">Scan</span></button>
+        <button class="action-btn" id="btn-map" title="Map (M)"><span class="action-icon">&#9788;</span><span class="action-label">Map</span></button>
+        <button class="action-btn" id="btn-rover" title="Rover (R)"><span class="action-icon">&#9673;</span><span class="action-label">Rover</span></button>
+        <button class="action-btn" id="btn-journal" title="Journal (J)"><span class="action-icon">&#128214;</span><span class="action-label">Journal</span></button>
+        <button class="action-btn" id="btn-kora" title="Talk to KORA (K)"><span class="action-icon">&#128172;</span><span class="action-label">Talk</span></button>
+      </div>
+      <div id="hud-interact" class="hidden"></div>
+      <div id="hud-controls-hint">WASD move &nbsp;|&nbsp; Mouse drag camera &nbsp;|&nbsp; E interact &nbsp;|&nbsp; Q scan &nbsp;|&nbsp; M map &nbsp;|&nbsp; J journal &nbsp;|&nbsp; K talk</div>
+    </div>
+    <div id="menu-screen" class="screen">
+      <div class="menu-content">
+        <div class="game-logo">
+          <div class="logo-year">2047</div>
+          <div class="logo-title">The Great Space Expedition</div>
+          <div class="logo-tagline">Explore it. Ask about it. Learn it.</div>
+        </div>
+        <div class="menu-buttons">
+          <button class="menu-btn primary" id="btn-new-game">New Expedition</button>
+          <button class="menu-btn" id="btn-continue">Continue</button>
+          <button class="menu-btn" id="btn-settings">Settings</button>
+          <button class="menu-btn" id="btn-howto">How to Play</button>
+        </div>
+        <div class="menu-footer">A Junior Explorer Training Simulation &bull; v0.1</div>
+      </div>
+    </div>
+    <div id="profile-screen" class="screen hidden">
+      <div class="panel large">
+        <h2>Junior Explorer Registration</h2>
+        <p class="panel-sub">Mission Control needs a few details before launch.</p>
+        <div class="profile-row">
+          <label>Explorer Name</label>
+          <input type="text" id="profile-name" maxlength="16" placeholder="e.g. Nova" value="">
+        </div>
+        <div class="profile-row">
+          <label>Avatar</label>
+          <div class="option-grid" id="avatar-options"></div>
+        </div>
+        <div class="profile-row">
+          <label>Suit Accent</label>
+          <div class="option-grid" id="accent-options"></div>
+        </div>
+        <div class="profile-row">
+          <label>Helmet Style</label>
+          <div class="option-grid" id="helmet-options"></div>
+        </div>
+        <div class="profile-row">
+          <label>Exploration Badge</label>
+          <div class="option-grid" id="badge-options"></div>
+        </div>
+        <div class="panel-buttons">
+          <button class="menu-btn" id="btn-profile-back">Back</button>
+          <button class="menu-btn primary" id="btn-profile-done">Begin Training</button>
+        </div>
+      </div>
+    </div>
+    <div id="briefing-screen" class="screen hidden">
+      <div class="panel large">
+        <h2>Mission Briefing</h2>
+        <div id="briefing-text"></div>
+        <div class="panel-buttons">
+          <button class="menu-btn primary" id="btn-briefing-go">Launch</button>
+        </div>
+      </div>
+    </div>
+    <div id="kora-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <img src="assets/img/kora.svg" alt="KORA" class="panel-header-icon">
+        <div>
+          <div class="panel-title">KORA</div>
+          <div class="panel-subtitle">Knowledge &amp; Orbital Reconnaissance Assistant</div>
+        </div>
+        <button class="panel-close" data-close="kora-panel">&times;</button>
+      </div>
+      <div id="kora-messages"></div>
+      <div id="kora-input-row">
+        <button id="kora-mic" title="Speak to KORA">&#127908;</button>
+        <input type="text" id="kora-input" placeholder="Ask KORA a question..." autocomplete="off">
+        <button id="kora-send">Send</button>
+      </div>
+      <div id="kora-listening" class="hidden">Listening...</div>
+      <div id="kora-suggestions"></div>
+    </div>
+    <div id="journal-panel" class="side-panel wide hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon journal-icon">&#128214;</div>
+        <div>
+          <div class="panel-title">Explorer's Journal</div>
+          <div class="panel-subtitle" id="journal-progress">0 / 0 entries</div>
+        </div>
+        <button class="panel-close" data-close="journal-panel">&times;</button>
+      </div>
+      <div id="journal-tabs"></div>
+      <div id="journal-content"></div>
+    </div>
+    <div id="map-panel" class="side-panel wide hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon map-icon">&#9788;</div>
+        <div>
+          <div class="panel-title">Navigation Map</div>
+          <div class="panel-subtitle">Compressed game scale &bull; not to real proportions</div>
+        </div>
+        <button class="panel-close" data-close="map-panel">&times;</button>
+      </div>
+      <canvas id="map-canvas" width="720" height="480"></canvas>
+      <div id="map-legend"></div>
+    </div>
+    <div id="quiz-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon quiz-icon">&#10067;</div>
+        <div>
+          <div class="panel-title" id="quiz-title">Knowledge Check</div>
+          <div class="panel-subtitle" id="quiz-subtitle"></div>
+        </div>
+        <button class="panel-close" data-close="quiz-panel">&times;</button>
+      </div>
+      <div id="quiz-body"></div>
+    </div>
+    <div id="scan-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon scan-icon">&#8982;</div>
+        <div>
+          <div class="panel-title" id="scan-title">Scanner</div>
+          <div class="panel-subtitle" id="scan-subtitle">No target</div>
+        </div>
+        <button class="panel-close" data-close="scan-panel">&times;</button>
+      </div>
+      <div id="scan-body"></div>
+    </div>
+    <div id="npc-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon npc-icon" id="npc-icon">&#128100;</div>
+        <div>
+          <div class="panel-title" id="npc-name">Astronaut</div>
+          <div class="panel-subtitle" id="npc-role"></div>
+        </div>
+        <button class="panel-close" data-close="npc-panel">&times;</button>
+      </div>
+      <div id="npc-body"></div>
+    </div>
+    <div id="station-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon station-icon">&#9878;</div>
+        <div>
+          <div class="panel-title" id="station-name">Station</div>
+          <div class="panel-subtitle">Orbital Hub</div>
+        </div>
+        <button class="panel-close" data-close="station-panel">&times;</button>
+      </div>
+      <div id="station-body"></div>
+    </div>
+    <div id="settings-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon settings-icon">&#9881;</div>
+        <div>
+          <div class="panel-title">Settings</div>
+          <div class="panel-subtitle">Display &amp; audio preferences</div>
+        </div>
+        <button class="panel-close" data-close="settings-panel">&times;</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-row"><label>KORA Voice</label><button class="toggle" id="set-voice">On</button></div>
+        <div class="setting-row"><label>Speech Rate</label><input type="range" id="set-rate" min="0.6" max="1.4" step="0.1" value="1"><span id="set-rate-val">1.0</span></div>
+        <div class="setting-row"><label>Music Volume</label><input type="range" id="set-music" min="0" max="1" step="0.1" value="0.5"><span id="set-music-val">50%</span></div>
+        <div class="setting-row"><label>Effects Volume</label><input type="range" id="set-sfx" min="0" max="1" step="0.1" value="0.8"><span id="set-sfx-val">80%</span></div>
+        <div class="setting-row"><label>Reduced Motion</label><button class="toggle" id="set-motion">Off</button></div>
+        <div class="setting-row"><label>High Contrast</label><button class="toggle" id="set-contrast">Off</button></div>
+        <div class="setting-row"><label>Text Size</label>
+          <select id="set-textsize"><option value="normal">Normal</option><option value="large">Large</option><option value="xlarge">Extra Large</option></select>
+        </div>
+        <div class="setting-row danger"><label>Save Data</label><button class="toggle" id="set-wipe">Erase Save</button></div>
+      </div>
+    </div>
+    <div id="howto-panel" class="side-panel hidden">
+      <div class="panel-header">
+        <div class="panel-header-icon howto-icon">&#10067;</div>
+        <div>
+          <div class="panel-title">How to Play</div>
+          <div class="panel-subtitle">Explorer training manual</div>
+        </div>
+        <button class="panel-close" data-close="howto-panel">&times;</button>
+      </div>
+      <div class="howto-body">
+        <h3>Your Ship</h3>
+        <p><b>WASD / Arrows</b> — thrust &nbsp; <b>Mouse drag</b> — camera &nbsp; <b>Wheel</b> — zoom</p>
+        <p><b>E</b> — interact / dock / land &nbsp; <b>Q</b> — scan &nbsp; <b>Space</b> — stabilise</p>
+        <h3>Your Rover</h3>
+        <p><b>WASD</b> — drive &nbsp; <b>E</b> — scan / collect &nbsp; <b>R</b> — return to ship</p>
+        <h3>Tools</h3>
+        <p><b>M</b> — map &nbsp; <b>J</b> — journal &nbsp; <b>K</b> — talk to KORA</p>
+        <h3>The Loop</h3>
+        <p>Travel &rarr; Scan &rarr; Ask KORA &rarr; Complete missions &rarr; Fill your Journal &rarr; Unlock new worlds.</p>
+        <p class="howto-note">Wrong answers never end the game. KORA will help you learn and try again.</p>
+      </div>
+    </div>
+    <div id="report-screen" class="screen hidden">
+      <div class="panel large">
+        <h2>The Explorer's Field Report</h2>
+        <p class="panel-sub">Select the evidence you gathered on your expedition.</p>
+        <div id="report-body"></div>
+        <div class="panel-buttons">
+          <button class="menu-btn primary" id="btn-report-submit">Present Report</button>
+        </div>
+      </div>
+    </div>
+    <div id="credits-screen" class="screen hidden">
+      <div class="credits-content">
+        <h1>Expedition Complete</h1>
+        <div id="credits-text"></div>
+        <div class="credits-kora">"Mission complete. You started by asking where the Moon was. You ended by explaining why it has craters. Acceptable progress."</div>
+        <div class="credits-kora-name">— KORA</div>
+        <button class="menu-btn primary" id="btn-credits-menu">Return to Main Menu</button>
+      </div>
+    </div>
+    <div id="notification-area"></div>
+    <div id="discovery-toast" class="hidden">
+      <div class="discovery-icon">&#10024;</div>
+      <div>
+        <div class="discovery-title">New Discovery</div>
+        <div class="discovery-text"></div>
+      </div>
+    </div>
+    <div id="fade-overlay"></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/data/planets.js"></script>
+<script src="js/data/knowledge.js"></script>
+<script src="js/data/questions.js"></script>
+<script src="js/data/missions.js"></script>
+<script src="js/data/koraLines.js"></script>
+<script src="js/data/npc.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/save.js"></script>
+<script src="js/kora.js"></script>
+<script src="js/world.js"></script>
+<script src="js/ship.js"></script>
+<script src="js/rover.js"></script>
+<script src="js/scanner.js"></script>
+<script src="js/missions.js"></script>
+<script src="js/journal.js"></script>
+<script src="js/quiz.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
