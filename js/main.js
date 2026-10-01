@@ -8,13 +8,33 @@ G.Game = (function () {
   let landed = false;
   let docked = null;
   let briefingShown = false;
+  let posSaveTimer = 5;
+
+  // Scale HUD widgets & panels with the screen (CSS zoom via --ui). Markers/map stay in raw pixels.
+  function applyUiScale() {
+    const w = window.innerWidth, h = window.innerHeight;
+    const touch = document.body.classList.contains('touch');
+    const s = touch ? U.clamp(Math.min(w / 844, h / 390), 0.8, 1.45) : U.clamp(Math.min(w / 1280, h / 760), 0.7, 1.5);
+    G.uiScale = Math.round(s * 100) / 100;
+    document.documentElement.style.setProperty('--ui', G.uiScale);
+  }
+  window.addEventListener('resize', applyUiScale);
+  window.addEventListener('orientationchange', function () { setTimeout(applyUiScale, 200); });
 
   function boot() {
+    applyUiScale();
     G.Save.load();
     const canvas = U.el('game-canvas');
     G.World.init(canvas);
+    G.Sectors.init();
+    G.Spacecraft.init();
+    G.DeepSpace.init();
     G.Ship.bind(canvas);
     G.Rover.bind(canvas);
+    G.Holo.init();
+    G.Touch.init();
+    applyUiScale();
+    G.HUD.fillTicker();
     G.UI.initKoraPanel();
     G.UI.initProfileScreen();
     G.UI.initSettings();
@@ -24,10 +44,44 @@ G.Game = (function () {
     bindKeys();
     clock = { last: performance.now() };
     requestAnimationFrame(loop);
-    if (G.Save.get().profile) {
-      U.el('btn-continue').disabled = false;
+    G.HUD.boot(function () { G.Audio.play('ping'); });
+    updateMenuProfile();
+  }
+
+  function updateMenuProfile() {
+    const st = G.Save.get();
+    const btn = U.el('btn-continue');
+    const sub = U.el('menu-continue-sub');
+    const info = U.el('menu-explorer-info');
+    if (U.el('menu-export')) U.el('menu-export').disabled = !(st && st.profile);
+    if (st && st.profile) {
+      if (btn) btn.disabled = false;
+      const m = G.MISSIONS[st.missionIndex];
+      const mTitle = m ? m.title : 'All Missions Complete';
+      if (sub) sub.textContent = st.profile.name + ' \u2022 ' + mTitle;
+      if (info) {
+        const avIdx = st.profile.avatar || 1;
+        const avSrc = (window.G_ASSETS && G_ASSETS['avatar_' + avIdx + '.svg']) ? G_ASSETS['avatar_' + avIdx + '.svg'] : ('assets/img/avatar_' + avIdx + '.svg');
+        const rName = G.Save.rank().name;
+        const codexCount = st.codex ? st.codex.length : 0;
+        const xpVal = st.xp || 0;
+        info.innerHTML = '<div class="explorer-live">' +
+          '<div class="exp-avatar"><img src="' + avSrc + '" alt="Avatar"></div>' +
+          '<div class="exp-meta">' +
+            '<div class="exp-name">' + G.Codex.esc(st.profile.name) + '</div>' +
+            '<div class="exp-rank">' + G.Codex.esc(rName) + '</div>' +
+            '<div class="exp-stats">' +
+              '<span>XP <b>' + xpVal + '</b></span>' +
+              '<span>MISSION <b>' + (st.missionIndex + 1) + '/' + G.MISSIONS.length + '</b></span>' +
+              '<span>CODEX <b>' + codexCount + '</b></span>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
     } else {
-      U.el('btn-continue').disabled = true;
+      if (btn) btn.disabled = true;
+      if (sub) sub.textContent = 'No Active Log';
+      if (info) info.innerHTML = '<div class="terminal-placeholder">REGISTER CADET TO BEGIN</div>';
     }
   }
 
@@ -57,6 +111,7 @@ G.Game = (function () {
     U.el('btn-profile-back').onclick = function () {
       G.Audio.play('click');
       showScreen('menu-screen');
+      updateMenuProfile();
     };
     U.el('btn-profile-done').onclick = function () {
       G.Audio.play('success');
@@ -77,6 +132,7 @@ G.Game = (function () {
       G.Save.wipe();
       if (profile) G.Save.setProfile(profile);
       showScreen('menu-screen');
+      updateMenuProfile();
       mode = 'menu';
     };
     document.querySelectorAll('.panel-close').forEach(function (btn) {
@@ -92,9 +148,12 @@ G.Game = (function () {
     U.el('btn-scan').onclick = function () { doScan(); };
     U.el('btn-map').onclick = function () { G.UI.toggleMap(); };
     U.el('btn-rover').onclick = function () { doRoverAction(); };
+    U.el('btn-home').onclick = function () { goHome(); };
+    U.el('btn-jump').onclick = function () { G.Ship.toggleJump(); };
     U.el('btn-journal').onclick = function () { G.Journal.open(); };
     U.el('btn-kora').onclick = function () { G.UI.toggleKora(); };
-    U.el('hud-kora-mini').onclick = function () { G.UI.toggleKora(); };
+    U.el('hud-kora-mini').onclick = function () { G.Holo.poke(); G.UI.toggleKora(); };
+
   }
 
   function bindKeys() {
@@ -108,6 +167,8 @@ G.Game = (function () {
         case 'KeyQ': doScan(); break;
         case 'KeyE': doInteract(); break;
         case 'KeyR': doRoverAction(); break;
+        case 'KeyB': goHome(); break;
+        case 'KeyH': G.Ship.toggleJump(); break;
         case 'Escape':
           if (!U.el('map-panel').classList.contains('hidden')) G.UI.closeMap();
           else if (!U.el('journal-panel').classList.contains('hidden')) G.Journal.close();
@@ -117,18 +178,160 @@ G.Game = (function () {
           else if (!U.el('station-panel').classList.contains('hidden')) G.UI.closeStation();
           break;
       }
-      if (mode === 'play' && !landed) G.Rover.down(e);
+      G.Rover.down(e);
     });
     window.addEventListener('keyup', function (e) {
       G.Rover.up(e);
     });
   }
 
+  function bindTouch() {
+    const canvas = U.el('game-canvas');
+    const keyStates = {
+      w: false, up: false, s: false, down: false,
+      a: false, left: false, d: false, right: false,
+      space: false, r: false, q: false, e: false
+    };
+    const start = { x: 0, y: 0 };
+    let touchId = null;
+    let dragX = 0, dragY = 0;
+
+    canvas.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      touchId = t.identifier;
+      start.x = t.clientX; start.y = t.clientY;
+      keyStates.w = keyStates.up = keyStates.s = keyStates.down = false;
+      keyStates.a = keyStates.left = keyStates.d = keyStates.right = false;
+      keyStates.space = keyStates.r = keyStates.q = keyStates.e = false;
+      dragX = dragY = 0;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', function (e) {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      if (t.identifier === touchId) {
+        touchId = null;
+        Object.assign(keyStates, {
+          w: false, up: false, s: false, down: false,
+          a: false, left: false, d: false, right: false,
+          space: false, r: false, q: false, e: false
+        });
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      if (t.identifier === touchId) {
+        dragX = t.clientX - start.x; dragY = t.clientY - start.y;
+        start.x = t.clientX; start.y = t.clientY;
+      }
+    }, { passive: false });
+
+    // Mobile virtual joystick feeds the same keyStates array the ship/controls read
+    setInterval(function () {
+      const s = keyStates;
+      s.w = dragY < -18;
+      s.s = dragY > 18;
+      s.a = dragX < -18;
+      s.d = dragX > 18;
+      G.Ship.setTouchStates(s);
+      G.Rover.setTouchStates(s);
+    }, 100);
+  }
+
+  // Heading-up tactical radar on the right dashboard display.
+  function drawMinimap() {
+    const canvas = document.querySelector('#minimap canvas');
+    if (!canvas || !canvas.offsetParent) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2, R = W / 2 - 8;
+    const t = performance.now() / 1000;
+    const from = landed ? G.Rover.position() : G.Ship.position();
+    const yaw = landed ? G.Rover.heading() : G.Ship.heading();
+    const range = landed ? 260 : 520;
+    const cs = Math.cos(yaw), sn = Math.sin(yaw);
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    bg.addColorStop(0, 'rgba(10,40,64,0.9)'); bg.addColorStop(1, 'rgba(2,10,20,0.95)');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(79,216,255,0.25)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 3; i++) { ctx.beginPath(); ctx.arc(cx, cy, R * i / 3, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
+    ctx.fillStyle = 'rgba(79,216,255,0.08)';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, -Math.PI / 2 - 0.6, -Math.PI / 2 + 0.6); ctx.closePath(); ctx.fill();
+    const sw = t * 1.8;
+    for (let i = 0; i < 18; i++) {
+      ctx.strokeStyle = 'rgba(79,216,255,' + (0.3 * (1 - i / 18)).toFixed(3) + ')';
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sw - i * 0.03) * R, cy + Math.sin(sw - i * 0.03) * R); ctx.stroke();
+    }
+    function plot(p, color, size, shape, label) {
+      const dx = p.x - from.x, dz = p.z - from.z;
+      const rx = dx * cs - dz * sn, f = -dx * sn - dz * cs;
+      const d = Math.hypot(rx, f);
+      if (d < 0.001) return;
+      const k = Math.min(1, Math.sqrt(d / range)) * R / d;
+      const edge = d > range;
+      const x = cx + rx * k * (edge ? 0.97 : 1), y = cy - f * k * (edge ? 0.97 : 1);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = edge ? 0.55 : 1;
+      if (shape === 'diamond') { ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-size, -size, size * 2, size * 2); ctx.restore(); }
+      else if (shape === 'cross') { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - size, y); ctx.lineTo(x + size, y); ctx.moveTo(x, y - size); ctx.lineTo(x, y + size); ctx.stroke(); ctx.lineWidth = 1; }
+      else { ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      if (label && !edge) {
+        ctx.font = '15px "Share Tech Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, x, y - size - 4);
+      }
+      return { x: x, y: y };
+    }
+    if (landed) {
+      G.World.pois.forEach(function (p) { plot(p.obj.position, p.scanned ? '#5dffa0' : '#c79bff', 5, 'cross'); });
+      plot(G.World.ship.group.position, '#8ef0ff', 6, 'diamond', 'SHIP');
+    } else {
+      for (const id in G.World.bodies) {
+        const b = G.World.bodies[id];
+        plot(b.worldPos, b.def.color, U.clamp(Math.sqrt(b.def.radius) * 1.6, 3, 11), 'dot', from.distanceTo(b.worldPos) < range ? b.def.name.replace('The ', '') : null);
+      }
+      for (const id in G.World.stations) plot(G.World.stations[id].worldPos, '#8ef0ff', 4, 'diamond');
+      G.Sectors.anomalies().forEach(function (a) { plot(a.obj.position, '#c79bff', 4, 'cross'); });
+    }
+    let obj = G.StarMap.course() && !landed ? G.StarMap.course().pos : objectivePosition();
+    if (landed && obj && !G.World.pois.some(function (p) { return p.obj.position === obj; })) obj = null;
+    if (obj) {
+      const o = plot(obj, '#ffb347', 5, 'dot');
+      if (o) {
+        ctx.strokeStyle = '#ffb347';
+        ctx.beginPath(); ctx.arc(o.x, o.y, 9 + 3 * Math.sin(t * 5), 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#ffb347';
+    ctx.beginPath(); ctx.moveTo(cx, cy - 9); ctx.lineTo(cx + 6, cy + 7); ctx.lineTo(cx, cy + 3); ctx.lineTo(cx - 6, cy + 7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(79,216,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  }
   function showScreen(id) {
     ['menu-screen', 'profile-screen', 'briefing-screen', 'report-screen', 'credits-screen'].forEach(function (s) {
       U.hide(s);
     });
+    // Close any side panels left open from gameplay
+    ['kora-panel', 'journal-panel', 'map-panel', 'quiz-panel', 'scan-panel', 'npc-panel', 'station-panel'].forEach(function (p) {
+      U.hide(p);
+    });
+    koraOpenCleanup();
     if (id) U.show(id);
+  }
+
+  function koraOpenCleanup() {
+    G.Voice.stop();
+    var mic = U.el('kora-mic');
+    if (mic) mic.classList.remove('listening');
+    U.hide('kora-listening');
   }
 
   function showBriefing() {
@@ -167,10 +370,89 @@ G.Game = (function () {
     G.UI.updateHUD();
     G.Save.visit('earth');
     G.Ship.setFirstMoveCb(G.Missions.onMove);
-    const earth = G.World.bodies['earth'];
-    if (earth && earth.worldPos) {
-      G.Ship.teleport(earth.worldPos.x + 45, 12, earth.worldPos.z + 20);
+    // Restore the explorer's exact position when continuing a saved expedition.
+    const wp = isContinue ? G.Save.get().worldPos : null;
+    if (wp && wp.landed && wp.body && G.World.bodies[wp.body] && G.World.bodies[wp.body].def.type !== 'star') {
+      landed = true;
+      G.Ship.deactivate();
+      G.Rover.activate();
+      G.World.buildTerrain(wp.body);
+      G.Rover.place(wp.rx || 0, wp.rz || 0);
+      const rp = G.Rover.position();
+      G.Ship.teleport(rp.x, rp.y + 22, rp.z);
+      G.Kora.setContext(wp.body);
+      G.UI.koraSay('Resuming surface operations on ' + G.World.bodies[wp.body].def.name + '.');
+    } else if (wp && wp.ship) {
+      G.Ship.teleport(wp.ship.x, wp.ship.y, wp.ship.z);
+    } else {
+      const earth = G.World.bodies['earth'];
+      if (earth && earth.worldPos) {
+        G.Ship.teleport(earth.worldPos.x + 70, 10, earth.worldPos.z + 45, G.World.satellite().position);
+      }
     }
+  }
+
+  function saveWorldPos() {
+    const st = G.Save.get();
+    if (landed) {
+      const rp = G.Rover.position();
+      st.worldPos = { landed: true, body: G.World.terrainBody, rx: rp.x, rz: rp.z };
+    } else {
+      const sp = G.Ship.position();
+      st.worldPos = { landed: false, ship: { x: sp.x, y: sp.y, z: sp.z } };
+    }
+    G.Save.save();
+  }
+
+  function objectivePosition() {
+    const step = G.Missions.currentStep();
+    if (!step) return null;
+    if (step.type === 'travel_body' || step.type === 'land') return G.World.bodyPosition(step.target);
+    if (step.type === 'dock') return G.World.stationPosition(step.target);
+    if (step.type === 'npc') {
+      const npc = G.NPCS[step.target];
+      return npc ? G.World.stationPosition(npc.location) : null;
+    }
+    if (step.type === 'report') return G.World.bodyPosition('earth');
+    if (step.type === 'scan') {
+      if (step.target === 'satellite') {
+        const sat = G.World.satellite();
+        if (sat) return sat.position;
+      }
+      const bp = G.World.bodyPosition(step.target);
+      if (bp) return bp;
+      const pois = G.World.pois;
+      for (let i = 0; i < pois.length; i++) {
+        if (pois[i].kind === step.target || pois[i].id === step.target) return pois[i].obj.position;
+      }
+    }
+    return null;
+  }
+
+  function updateWaypoint() {
+    const course = !landed && G.StarMap.course();
+    let pos = course ? course.pos : objectivePosition();
+    if (landed && pos && !G.World.pois.some(function (p) { return p.obj.position === pos; })) pos = null;
+    G.World.setObjective(pos);
+    if (!pos) { G.UI.setWaypoint(null); G.HUD.setObjective(null); return; }
+    const step = G.Missions.currentStep();
+    const from = landed ? G.Rover.position() : G.Ship.position();
+    const d = from.distanceTo(pos);
+    let label = '', radius = 4;
+    if (course) { label = course.label; radius = course.radius; }
+    else if (step) {
+      if (step.target === 'satellite') label = 'Training Satellite';
+      else if (G.PLANETS[step.target]) { label = G.PLANETS[step.target].name; radius = G.PLANETS[step.target].radius; }
+      else if (G.STATIONS[step.target]) label = G.STATIONS[step.target].name;
+      else {
+        const pois = G.World.pois;
+        for (let i = 0; i < pois.length; i++) {
+          if (pois[i].kind === step.target || pois[i].id === step.target) { label = pois[i].name; break; }
+        }
+      }
+    }
+    G.UI.setWaypoint({ label: label || 'Objective', dist: d });
+    G.HUD.setObjective({ pos: pos, label: label || 'Objective', radius: radius });
   }
 
   function fadeOut(cb) {
@@ -196,11 +478,31 @@ G.Game = (function () {
       const sat = G.World.satellite();
       if (sat) {
         const d = G.Ship.position().distanceTo(sat.position);
-        if (d < 45) target = { obj: sat, id: 'satellite', kind: 'satellite', name: 'Training Satellite', radius: 4, scanned: false };
+        if (d < SCAN_R) target = { obj: sat, id: 'satellite', kind: 'satellite', name: 'Training Satellite', radius: 4, scanned: false };
       }
       if (!target) {
-        const near = G.World.nearestPOI(G.Ship.position(), 40);
+        const near = G.World.nearestPOI(G.Ship.position(), SCAN_R);
         if (near) target = near.poi;
+      }
+      if (!target) {
+        const an = G.Sectors.nearestAnomaly(G.Ship.position(), SCAN_R);
+        if (an) target = an.poi;
+      }
+      if (!target) {
+        // Orbit scan: read a nearby planet, moon or star from the ship
+        const nb = G.World.nearestBody(G.Ship.position(), 1e9);
+        if (nb && nb.dist < nb.body.def.radius + SCAN_R) {
+          const id = nb.body.def.id;
+          const info = G.Scanner.infoFor(id);
+          if (info) {
+            target = {
+              obj: nb.body.group, id: id, kind: id, name: info.name,
+              radius: nb.body.def.radius,
+              scanned: G.Save.isPoiScanned('orbit', id),
+              orbit: true
+            };
+          }
+        }
       }
     }
     if (!target) {
@@ -218,11 +520,52 @@ G.Game = (function () {
     }
   }
 
+  const SCAN_R = 30;
+
+  function scanReach(poi) {
+    const from = landed ? G.Rover.position() : G.Ship.position();
+    const b = G.World.bodies[poi.id];
+    let surf = poi.surface || 0, lim = landed ? 22 : SCAN_R;
+    if (!landed && b && poi.orbit && !poi.craft && !poi.site) surf = b.def.radius;
+    if (poi.scanRange) lim = Math.max(lim, poi.scanRange);
+    return { dist: from.distanceTo(poi.obj.position) - surf, lim: lim };
+  }
+
+  function resolvePoi(t) {
+    let poi = t.poi;
+    if (!poi && t.bodyId) {
+      const b = G.World.bodies[t.bodyId], info = G.Scanner.infoFor(t.bodyId);
+      if (b && info) poi = { obj: b.group, id: t.bodyId, kind: t.bodyId, name: info.name, radius: b.def.radius, scanned: G.Save.isPoiScanned('orbit', t.bodyId), orbit: true };
+    }
+    return poi;
+  }
+
+  function scanStatus(t) {
+    const poi = resolvePoi(t);
+    if (!poi || !poi.obj) return null;
+    const r = scanReach(poi);
+    return { ok: r.dist <= r.lim, dist: r.dist, lim: r.lim };
+  }
+
+  function scanTarget(t) {
+    if (mode !== 'play' || G.Scanner.isScanning()) return;
+    const poi = resolvePoi(t);
+    if (!poi) { G.UI.notify('There is nothing to scan here', 'info'); return; }
+    const r = scanReach(poi);
+    if (r.dist > r.lim) {
+      G.UI.notify('Too far! Fly within ' + Math.round(r.lim) + 'm of ' + (t.name || poi.name) + ' to scan it (now ' + Math.round(r.dist) + 'm)', 'info');
+      G.Audio.play('error');
+      return;
+    }
+    if (G.Scanner.startScan(poi)) { G.UI.openScanPanel(poi); G.Audio.play('ping'); }
+  }
+
   function doInteract() {
     if (mode !== 'play') return;
     if (interactTarget) {
-      interactTarget();
+      const fn = interactTarget;
       interactTarget = null;
+      fn();
       return;
     }
     if (landed) {
@@ -233,12 +576,13 @@ G.Game = (function () {
       return;
     }
     const nearStation = G.World.nearestStation(G.Ship.position(), 22);
-    if (nearStation) {
+    const nearBody = G.World.nearestBody(G.Ship.position(), 1e9);
+    const canLand = !!(nearBody && nearBody.dist < nearBody.body.def.radius + 14 && nearBody.body.def.type !== 'star');
+    if (nearStation && (nearStation.dist < 12 || !canLand)) {
       dock(nearStation.station);
       return;
     }
-    const nearBody = G.World.nearestBody(G.Ship.position(), 1e9);
-    if (nearBody && nearBody.dist < nearBody.body.def.radius + 14 && nearBody.body.def.terrain) {
+    if (canLand) {
       land(nearBody.body);
       return;
     }
@@ -248,13 +592,17 @@ G.Game = (function () {
   function dock(station) {
     G.Audio.play('dock');
     G.UI.notify('Docked at ' + station.def.name, 'good');
-    G.UI.openStation(station);
     G.Save.visit(station.def.id);
     G.Missions.onDock(station.def.id);
+    G.UI.openStation(station);
   }
 
   function land(body) {
     G.Audio.play('land');
+    interactTarget = null;
+    G.UI.closeStation();
+    const nearSite = G.Spacecraft.siteNear(G.Ship.position(), body.def.id);
+    const siteNote = nearSite && nearSite.dist < body.def.radius * 1.5 ? ' We touched down close to the ' + nearSite.site.name + '. ' : ' ';
     fadeOut(function () {
       landed = true;
       G.Ship.deactivate();
@@ -266,8 +614,12 @@ G.Game = (function () {
       G.Save.visit(body.def.id);
       G.Kora.setContext(body.def.id);
       G.Missions.onLand(body.def.id);
+      saveWorldPos();
       G.UI.notify('Landed on ' + body.def.name + '. Rover deployed.', 'good');
-      G.UI.koraSay('Touchdown on ' + body.def.name + '. Gravity here is ' + (body.def.gravity || 'moderate') + '. Drive with WASD, scan with Q, and please avoid the rocks.');
+      const gas = G.TERRAINS.isGas(body.def);
+      G.UI.koraSay(gas
+        ? body.def.name + ' has no solid ground at all! I switched your rover to hover mode so we can glide over the cloud tops. Look for the glowing rings and tap or press Q to scan them!'
+        : 'Touchdown on ' + body.def.name + '!' + siteNote + 'Drive around, find the glowing rings, and scan everything you see. I will tell you all about it.');
       fadeIn();
     });
   }
@@ -280,14 +632,23 @@ G.Game = (function () {
     }
     const roverPos = G.Rover.position();
     const shipPos = G.Ship.position();
-    if (U.dist(roverPos.x, roverPos.z, shipPos.x, shipPos.z) < 30) {
+    const far = U.dist(roverPos.x, roverPos.z, shipPos.x, shipPos.z) >= 30;
+    returnToShip(far ? 'Rover recalled to the EX-01.' : null);
+  }
+
+  function goHome() {
+    if (mode !== 'play') return;
+    G.StarMap.close();
+    G.Ship.setJump(false);
+    if (landed) {
       returnToShip();
+      setTimeout(function () { G.UI.travelTo('earth', true); }, 1000);
     } else {
-      G.UI.notify('Drive back to your ship (within 30m) and press R to return', 'info');
+      G.UI.travelTo('earth', true);
     }
   }
 
-  function returnToShip() {
+  function returnToShip(msg) {
     G.Audio.play('dock');
     fadeOut(function () {
       landed = false;
@@ -296,7 +657,8 @@ G.Game = (function () {
       G.World.removeTerrain();
       G.Ship.activate();
       G.Missions.onReturnShip();
-      G.UI.notify('Rover recovered. Back aboard the EX-01.', 'good');
+      saveWorldPos();
+      G.UI.notify(msg || 'Rover recovered. Back aboard the EX-01.', 'good');
       fadeIn();
     });
   }
@@ -306,37 +668,52 @@ G.Game = (function () {
       return;
     }
     let text = null;
+    interactTarget = null;
     if (landed) {
       const near = G.World.nearestPOI(G.Rover.position(), 20);
       if (near && !near.poi.scanned) {
         text = 'Press E or Q to scan: ' + near.poi.name;
         interactTarget = function () { doScan(); };
-      } else {
-        const roverPos = G.Rover.position();
-        const shipPos = G.Ship.position();
-        if (U.dist(roverPos.x, roverPos.z, shipPos.x, shipPos.z) < 30) {
-          text = 'Press R to return to your ship';
-          interactTarget = function () { doRoverAction(); };
-        }
+      } else if (!G.Touch.enabled()) {
+        text = 'Press R to return to your ship';
+        interactTarget = function () { doRoverAction(); };
       }
     } else {
       const nearStation = G.World.nearestStation(G.Ship.position(), 22);
-      if (nearStation) {
+      const an = G.Sectors.nearestAnomaly(G.Ship.position(), SCAN_R);
+      const nearBody = G.World.nearestBody(G.Ship.position(), 1e9);
+      const canLand = !!(nearBody && nearBody.dist < nearBody.body.def.radius + 14 && nearBody.body.def.type !== 'star');
+      if (nearStation && (nearStation.dist < 12 || !canLand)) {
         text = 'Press E to dock at ' + nearStation.station.def.name;
         interactTarget = function () { dock(nearStation.station); };
-      } else {
-        const nearBody = G.World.nearestBody(G.Ship.position(), 1e9);
-        if (nearBody && nearBody.dist < nearBody.body.def.radius + 14 && nearBody.body.def.terrain) {
-          text = 'Press E to land on ' + nearBody.body.def.name;
-          interactTarget = function () { land(nearBody.body); };
-        }
+      } else if (canLand) {
+        text = (an && !an.poi.scanned ? 'Q: scan ' + an.poi.name + ' \u00b7 E: land on ' : 'Press E to land on ') + nearBody.body.def.name;
+        interactTarget = function () { land(nearBody.body); };
+      } else if (an && !an.poi.scanned) {
+        text = 'Press Q to scan: ' + an.poi.name;
+        interactTarget = function () { doScan(); };
       }
     }
     G.UI.setInteract(text);
   }
 
   function loop(now) {
+    clock.rafSeen = performance.now();
     requestAnimationFrame(loop);
+    step(now);
+    if (mode === 'play') drawMinimap();
+  }
+
+  // Fallback driver for environments where requestAnimationFrame is throttled
+  // or not composited (e.g. embedded webviews). Keeps the game alive.
+  setInterval(function () {
+    if (!clock) return;
+    const sinceRaf = performance.now() - (clock.rafSeen || 0);
+    if (sinceRaf > 300) step(performance.now());
+    if (mode === 'play') drawMinimap();
+  }, 250);
+
+  function step(now) {
     const dt = Math.min(0.05, (now - clock.last) / 1000);
     clock.last = now;
     if (!G.World.isReady()) return;
@@ -347,8 +724,13 @@ G.Game = (function () {
         info = G.Rover.update(dt);
       } else {
         info = G.Ship.update(dt);
+        G.Sectors.update(dt, G.Ship.position());
+        G.Spacecraft.update(dt);
+        G.DeepSpace.update(dt, G.Ship.position());
+        G.StarMap.tick(dt, G.Ship.position());
       }
       if (info) {
+        G.Audio.engine(landed ? 'rover' : 'ship', info.throttle || 0, !!info.boost, dt);
         const st = G.Save.get();
         if (info.speed > 2) {
           st.fuel = Math.max(0, st.fuel - dt * 0.25);
@@ -361,37 +743,68 @@ G.Game = (function () {
       const scanRes = G.Scanner.update(dt);
       if (scanRes) {
         if (scanRes.finished) {
-          G.UI.closeScanPanel();
+          G.UI.scanFinished(scanRes.poi, scanRes.info);
         } else {
           G.UI.updateScanPanel();
         }
       }
+      const sc = G.Scanner.current();
+      if (sc && sc.poi && sc.poi.obj) {
+        const rr = scanReach(sc.poi);
+        if (rr.dist > rr.lim * 1.6 + 10) {
+          G.Scanner.cancel();
+          G.UI.notify('Scan interrupted: target out of range', 'info');
+        }
+      }
+      const sc2 = G.Scanner.current();
+      if (sc2 && sc2.poi && sc2.poi.obj) {
+        G.World.setScanState({ position: sc2.poi.obj.position, progress: G.Scanner.progress() });
+      } else {
+        G.World.setScanState(null);
+      }
       updateInteract();
+      updateWaypoint();
       G.UI.updateHUD();
+      G.HUD.update(dt, info, landed);
+      posSaveTimer -= dt;
+      if (posSaveTimer <= 0) { posSaveTimer = 5; saveWorldPos(); }
       if (Math.random() < dt * 0.002) G.Save.save();
     } else {
+      G.Audio.engine(null, 0, false, dt);
+      G.Spacecraft.update(dt);
       const cam = G.World.camera;
-      const t = now * 0.00004;
+      const t = now * 0.00003;
       const earth = G.World.bodies['earth'];
       if (earth && earth.worldPos) {
         cam.position.set(
-          earth.worldPos.x + Math.cos(t) * 90,
-          30 + Math.sin(t * 2.3) * 10,
-          earth.worldPos.z + Math.sin(t) * 90
+          earth.worldPos.x + Math.cos(t) * 46,
+          8 + Math.sin(t * 2.3) * 6,
+          earth.worldPos.z + Math.sin(t) * 46
         );
-        cam.lookAt(earth.worldPos.x, 0, earth.worldPos.z);
+        cam.lookAt(earth.worldPos.x - Math.sin(t) * 22, 0, earth.worldPos.z + Math.cos(t) * 22);
+        if (cam.fov !== 55) { cam.fov = 55; cam.updateProjectionMatrix(); }
       }
     }
+    G.World.render();
   }
 
   function openReport() {
     mode = 'report';
+    U.hide('hud');
     showScreen('report-screen');
     const st = G.Save.get();
     const body = U.el('report-body');
-    const planets = ['moon', 'mars'];
-    const history = ['apollo11', 'chandrayaan3'];
-    const concepts = ['gravity.concept', 'mars.water', 'science.method', 'orbit.concept'];
+    const visitedPlanets = st.visited.filter(function (id) { return G.PLANETS[id] && G.PLANETS[id].type !== 'star'; });
+    let planets = visitedPlanets.slice();
+    ['earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].forEach(function (id) {
+      if (planets.length < 4 && planets.indexOf(id) < 0) planets.push(id);
+    });
+    const historyPool = ['apollo11', 'chandrayaan1', 'chandrayaan2', 'chandrayaan3', 'voyager.missions', 'mars.rovers'];
+    let history = historyPool.filter(function (id) { return !!st.knowledge[id]; });
+    if (history.length < 2) history = ['apollo11', 'chandrayaan3'];
+    const conceptPool = ['gravity.concept', 'mars.water', 'science.method', 'orbit.concept', 'gas.giant.concept', 'light.year', 'communication.concept'];
+    let concepts = conceptPool.filter(function (id) { return !!st.knowledge[id]; });
+    if (concepts.length < 2) concepts = ['gravity.concept', 'science.method', 'orbit.concept'];
     let html = '';
     html += '<div class="report-group"><h3>Choose a planet or moon you explored</h3><div class="report-options" data-group="planet">';
     for (let i = 0; i < planets.length; i++) {
@@ -436,6 +849,7 @@ G.Game = (function () {
 
   function showCredits() {
     mode = 'credits';
+    U.hide('hud');
     showScreen('credits-screen');
     const st = G.Save.get();
     const m = G.MISSIONS[st.missionIndex - 1];
@@ -445,10 +859,12 @@ G.Game = (function () {
     text += 'Knowledge Topics: ' + Object.keys(st.knowledge).length + ' / ' + G.KNOWLEDGE.length + '\n';
     text += 'Badges Earned: ' + st.badges.length + ' / ' + G.BADGES.length + '\n';
     text += 'Questions Asked: ' + st.questionsAsked + '\n\n';
-    text += 'What I saw: the Moon, Mars, and the stations between.\n';
-    text += 'What I measured: craters, channels, rocks and signals.\n';
+    const seen = st.visited.filter(function (id) { return G.PLANETS[id]; }).map(function (id) { return G.PLANETS[id].name; });
+    const seenText = seen.length ? seen.join(', ') : 'nothing yet';
+    text += 'What I saw: ' + seenText + '.\n';
+    text += 'What I measured: craters, channels, storms, rings and signals.\n';
     text += 'What I learned: that science is asking questions and following evidence.\n';
-    text += 'Where I learned it: out there.';
+    text += 'Where I learned it: from the Moon to the cold edge of the Solar System.';
     U.el('credits-text').textContent = text;
     G.Audio.startMusic('discovery');
     G.Audio.speak('Mission complete. You started by asking where the Moon was. You ended by explaining why it has craters. Acceptable progress.', st.settings.rate);
@@ -458,7 +874,12 @@ G.Game = (function () {
 
   return {
     fadeOut: fadeOut, fadeIn: fadeIn,
+    scanTarget: scanTarget, scanStatus: scanStatus, doScan: function () { doScan(); }, doInteract: function () { doInteract(); },
+    doRoverAction: function () { doRoverAction(); },
+    goHome: goHome,
+    isLanded: function () { return landed; },
     showCredits: showCredits, openReport: openReport,
+    drawMinimap: drawMinimap,
     get mode() { return mode; }
   };
 })();

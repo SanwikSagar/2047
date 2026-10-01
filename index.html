@@ -4,96 +4,283 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>2047: The Great Space Expedition</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="css/style.css?v=24">
 </head>
 <body>
 <div id="game-container">
-  <canvas id="game-canvas"></canvas>
+  <canvas id="game-canvas" width="800" height="600"></canvas>
+  <div id="fx-vignette"></div>
+  <div id="fx-scanlines"></div>
+  <div id="warp-fx" aria-hidden="true"><div class="warp-tunnel"></div><div class="warp-label">ENGAGING FOLD DRIVE</div></div>
+
   <div id="ui-root">
     <div id="hud" class="hidden">
+      <!-- cockpit frame -->
+      <svg id="cockpit-frame" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="strutGrad" x1="0" x2="1">
+            <stop offset="0" stop-color="#1d2a4d"/><stop offset="1" stop-color="#2b3d6b"/>
+          </linearGradient>
+          <linearGradient id="strutGradR" x1="1" x2="0">
+            <stop offset="0" stop-color="#1d2a4d"/><stop offset="1" stop-color="#2b3d6b"/>
+          </linearGradient>
+        </defs>
+        <path class="strut" d="M0,0 L110,0 L36,900 L0,900 Z"/>
+        <path class="strut r" d="M1600,0 L1490,0 L1564,900 L1600,900 Z"/>
+        <path class="strut" d="M0,0 L1600,0 L1600,14 L1080,22 L520,22 L0,14 Z"/>
+        <path class="strut-edge" d="M110,0 L36,900"/>
+        <path class="strut-edge" d="M1490,0 L1564,900"/>
+        <path class="strut-edge" d="M0,14 L520,22 L1080,22 L1600,14"/>
+        <path class="strut-line" d="M70,60 L28,700 M1530,60 L1572,700"/>
+      </svg>
+      <div id="glass-glare"></div>
+      <div class="cockpit-leds left"><i></i><i></i><i></i><i></i></div>
+      <div class="cockpit-leds right"><i></i><i></i><i></i><i></i></div>
+      <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+      <div id="markers"></div>
+      <div id="reticle">
+        <svg viewBox="-60 -60 120 120">
+          <circle r="22" class="r-ring"/>
+          <path d="M-46,0 L-30,0 M30,0 L46,0 M0,-46 L0,-30 M0,30 L0,46" class="r-tick"/>
+          <circle r="2" class="r-dot"/>
+        </svg>
+        <div id="velocity-marker"></div>
+      </div>
+
       <div id="hud-top">
-        <div id="hud-destination">
-          <span class="hud-label">DESTINATION</span>
+        <div id="hud-destination" class="hud-chip">
+          <span class="hud-label">LOCATION</span>
           <span id="hud-dest-name">Earth Orbit</span>
+          <span id="hud-sector" class="hud-sub">SECTOR 00:00</span>
         </div>
-        <div id="hud-status">
-          <div class="status-item"><span class="status-icon">&#9881;</span><span id="status-hull">100%</span></div>
-          <div class="status-item"><span class="status-icon">&#9889;</span><span id="status-power">100%</span></div>
-          <div class="status-item"><span class="status-icon">&#9992;</span><span id="status-signal">100%</span></div>
-          <div class="status-item"><span class="status-icon">&#9679;</span><span id="status-fuel">100%</span></div>
-        </div>
-        <div id="hud-rank">
+        <div id="hud-compass"><div id="compass-tape"></div><div class="compass-caret"></div></div>
+        <div id="hud-rank" class="hud-chip right">
           <span class="hud-label">RANK</span>
           <span id="hud-rank-name">Cadet Explorer</span>
+          <div class="xp-bar"><div id="hud-xp-fill"></div></div>
         </div>
       </div>
-      <div id="hud-objective">
-        <div class="objective-title">MISSION</div>
+
+      <div id="hud-objective" class="holo-card">
+        <div class="objective-title"><span class="blink-dot"></span>MISSION OBJECTIVE</div>
         <div id="objective-text">Launch Prep</div>
         <div id="objective-steps"></div>
+        <div id="objective-nav" class="objective-nav hidden"></div>
       </div>
-      <div id="hud-kora-mini">
-        <div id="kora-mini-avatar"><img src="assets/img/kora.svg" alt="KORA"></div>
-        <div id="kora-mini-text">KORA online.</div>
+
+      <div id="live-feed" class="holo-card hidden">
+        <div class="feed-head"><span class="live-dot"></span>LIVE DATA <span id="feed-source"></span></div>
+        <div id="feed-body">
+          <img id="feed-thumb" alt="">
+          <div>
+            <div id="feed-title"></div>
+            <div id="feed-desc"></div>
+          </div>
+        </div>
+        <div id="feed-extract"></div>
+        <div id="feed-stats"></div>
       </div>
-      <div id="hud-actions">
-        <button class="action-btn" id="btn-scan" title="Scan (Q)"><span class="action-icon">&#8982;</span><span class="action-label">Scan</span></button>
-        <button class="action-btn" id="btn-map" title="Map (M)"><span class="action-icon">&#9788;</span><span class="action-label">Map</span></button>
-        <button class="action-btn" id="btn-rover" title="Rover (R)"><span class="action-icon">&#9673;</span><span class="action-label">Rover</span></button>
-        <button class="action-btn" id="btn-journal" title="Journal (J)"><span class="action-icon">&#128214;</span><span class="action-label">Journal</span></button>
-        <button class="action-btn" id="btn-kora" title="Talk to KORA (K)"><span class="action-icon">&#128172;</span><span class="action-label">Talk</span></button>
-      </div>
+
       <div id="hud-interact" class="hidden"></div>
-      <div id="hud-controls-hint">WASD move &nbsp;|&nbsp; Mouse drag camera &nbsp;|&nbsp; E interact &nbsp;|&nbsp; Q scan &nbsp;|&nbsp; M map &nbsp;|&nbsp; J journal &nbsp;|&nbsp; K talk</div>
-    </div>
-    <div id="menu-screen" class="screen">
-      <div class="menu-content">
-        <div class="game-logo">
-          <div class="logo-year">2047</div>
-          <div class="logo-title">The Great Space Expedition</div>
-          <div class="logo-tagline">Explore it. Ask about it. Learn it.</div>
+
+      <div id="dashboard">
+        <div class="mfd" id="mfd-left">
+          <div class="mfd-title">SHIP SYSTEMS</div>
+          <div class="speed-readout"><span id="hud-speed">0</span><small>km/s</small></div>
+          <div class="throttle"><div id="hud-throttle"></div></div>
+          <div class="sys-bars">
+            <div class="sys hull"><span>HULL</span><div class="bar"><i id="bar-hull"></i></div><b id="status-hull">100%</b></div>
+            <div class="sys power"><span>POWER</span><div class="bar"><i id="bar-power"></i></div><b id="status-power">100%</b></div>
+            <div class="sys fuel"><span>FUEL</span><div class="bar"><i id="bar-fuel"></i></div><b id="status-fuel">100%</b></div>
+            <div class="sys signal"><span>SIGNAL</span><div class="bar"><i id="bar-signal"></i></div><b id="status-signal">100%</b></div>
+          </div>
         </div>
-        <div class="menu-buttons">
-          <button class="menu-btn primary" id="btn-new-game">New Expedition</button>
-          <button class="menu-btn" id="btn-continue">Continue</button>
-          <button class="menu-btn" id="btn-settings">Settings</button>
-          <button class="menu-btn" id="btn-howto">How to Play</button>
+
+        <div id="console-center">
+          <div id="hud-kora-mini" title="Talk to KORA (K)">
+            <canvas id="holo-canvas" width="220" height="220"></canvas>
+            <div id="holo-name">KORA</div>
+          </div>
+          <div id="kora-transcript">
+            <div class="transcript-head">KORA // COMMS</div>
+            <div id="kora-mini-text">KORA online.</div>
+            <div id="hud-actions">
+              <button class="action-btn" id="btn-scan" title="Scan (Q)"><span class="action-icon">&#8982;</span><span class="action-label">Scan</span><span class="action-key">Q</span></button>
+              <button class="action-btn" id="btn-map" title="Star Map (M)"><span class="action-icon">&#9678;</span><span class="action-label">Map</span><span class="action-key">M</span></button>
+              <button class="action-btn" id="btn-rover" title="Rover / back to ship (R)"><span class="action-icon">&#9635;</span><span class="action-label">Rover</span><span class="action-key">R</span></button>
+              <button class="action-btn" id="btn-home" title="Return to Earth (B)"><span class="action-icon">&#8962;</span><span class="action-label">Home</span><span class="action-key">B</span></button>
+              <button class="action-btn" id="btn-jump" title="Jump drive, beyond Neptune (H)"><span class="action-icon">&#187;</span><span class="action-label">Jump</span><span class="action-key">H</span></button>
+              <button class="action-btn" id="btn-journal" title="Journal (J)"><span class="action-icon">&#9636;</span><span class="action-label">Log</span><span class="action-key">J</span></button>
+              <button class="action-btn" id="btn-kora" title="Talk to KORA (K)"><span class="action-icon">&#9672;</span><span class="action-label">Comms</span><span class="action-key">K</span></button>
+            </div>
+          </div>
         </div>
-        <div class="menu-footer">A Junior Explorer Training Simulation &bull; v0.1</div>
+
+        <div class="mfd" id="mfd-right">
+          <div class="mfd-title">TACTICAL RADAR</div>
+          <div id="minimap"><canvas width="300" height="300"></canvas></div>
+          <div id="nav-readout">
+            <div><span>HOME</span><b id="nav-home">0.00 AU</b></div>
+            <div><span>CHARTED</span><b id="nav-charted">0</b></div>
+          </div>
+        </div>
+      </div>
+      <div id="mobile-controls-hint"></div>
+      <div id="touch-ui">
+        <div id="touch-left">
+          <div id="thrust">
+            <div class="th-head"><b>THRUST</b><span id="th-val">0%</span></div>
+            <div id="th-track">
+              <div id="th-fill"></div>
+              <i class="th-tick" style="bottom:25%"></i><i class="th-tick" style="bottom:50%"></i><i class="th-tick" style="bottom:75%"></i>
+              <div id="th-knob"></div>
+            </div>
+          </div>
+          <div id="touch-vert" class="ship-group">
+            <button id="m-up" class="tbtn tall"><i>&#9650;</i><b>UP</b></button>
+            <button id="m-down" class="tbtn tall"><i>&#9660;</i><b>DOWN</b></button>
+          </div>
+          <div id="touch-steer" class="rover-group">
+            <button id="m-left" class="tbtn tall"><i>&#9664;</i><b>LEFT</b></button>
+            <button id="m-right" class="tbtn tall"><i>&#9654;</i><b>RIGHT</b></button>
+            <button id="m-rev" class="tbtn wide"><i>&#9660;</i><b>REVERSE</b></button>
+          </div>
+        </div>
+        <div id="touch-right">
+          <button id="m-scan" class="tbtn big scan"><i>&#8982;</i><b>SCAN</b></button>
+          <button id="m-act" class="tbtn big act"><i>&#9670;</i><b>GO</b></button>
+          <button id="m-boost" class="tbtn boost ship-only"><i>&#187;</i><b>BOOST</b></button>
+          <button id="m-ship" class="tbtn rover-only"><i>&#9650;</i><b>SHIP</b></button>
+          <button id="m-brake" class="tbtn brake"><i>&#9632;</i><b>STOP</b></button>
+        </div>
+        <div id="touch-top">
+          <button id="m-home" title="Return to Earth">HOME</button>
+          <button id="m-jump" title="Jump drive (beyond Neptune)">JUMP</button>
+          <button id="m-map" title="Map">MAP</button>
+          <button id="m-journal" title="Journal">LOG</button>
+          <button id="m-talk" title="Talk to KORA">COMMS</button>
+          <button id="m-full" title="Fullscreen">&#9974;</button>
+          <button id="m-settings" title="Settings">&#9881;</button>
+        </div>
+        <div id="touch-hint">DRAG THE SCREEN TO LOOK &amp; STEER</div>
       </div>
     </div>
+
+    <div id="menu-screen" class="screen">
+      <div class="menu-backdrop-grid"></div>
+      <div class="menu-frame"><i></i><i></i><i></i><i></i></div>
+      <div class="menu-layout">
+        <div class="menu-content">
+          <div class="game-logo">
+            <div class="logo-kicker"><span class="kicker-badge">ORBITA FLEET</span> EXPLORATION DIVISION // EX-01</div>
+            <div class="logo-holo-projector">
+              <div class="holo-emitter-top"></div>
+              <div class="logo-year holo-text" data-text="2047">
+                <span class="holo-scan-line"></span>
+                <span class="holo-base">2047</span>
+              </div>
+              <div class="holo-plinth"></div>
+            </div>
+            <div class="logo-title">The Great Space Expedition</div>
+            <div class="logo-tagline">Explore worlds &bull; Question everything &bull; Master the cosmos</div>
+          </div>
+          <div class="menu-buttons">
+            <button class="menu-btn primary" id="btn-new-game">
+              <span class="btn-glow"></span>
+              <span class="idx">01</span>
+              <span class="btn-text">
+                <span class="btn-main">New Expedition</span>
+                <span class="btn-sub">Register Explorer &bull; Launch EX-01</span>
+              </span>
+            </button>
+            <button class="menu-btn" id="btn-continue">
+              <span class="btn-glow"></span>
+              <span class="idx">02</span>
+              <span class="btn-text">
+                <span class="btn-main">Resume Mission</span>
+                <span class="btn-sub" id="menu-continue-sub">No Active Log</span>
+              </span>
+            </button>
+            <button class="menu-btn" id="btn-settings">
+              <span class="btn-glow"></span>
+              <span class="idx">03</span>
+              <span class="btn-text">
+                <span class="btn-main">Flight Settings</span>
+                <span class="btn-sub">Audio &bull; Voice &bull; Display</span>
+              </span>
+            </button>
+            <button class="menu-btn" id="btn-howto">
+              <span class="btn-glow"></span>
+              <span class="idx">04</span>
+              <span class="btn-text">
+                <span class="btn-main">Flight Manual</span>
+                <span class="btn-sub">Controls &bull; Rover &bull; Cartography</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="menu-side-terminal">
+          <div class="terminal-card explorer-card" id="menu-explorer-card">
+            <div class="terminal-head"><span class="terminal-icon">&#9672;</span> EXPLORER RECORD</div>
+            <div class="terminal-body" id="menu-explorer-info">
+              <div class="terminal-placeholder">REGISTER CADET TO BEGIN</div>
+            </div>
+            <div class="terminal-actions">
+              <button class="term-btn" id="menu-export">&#8681; Download Save</button>
+              <button class="term-btn" id="menu-import">&#8679; Load Save File</button>
+            </div>
+          </div>
+          <div class="terminal-card telemetry-card">
+            <div class="terminal-head"><span class="terminal-icon">&#9678;</span> TELEMETRY STATUS</div>
+            <div class="telemetry-grid">
+              <div class="telemetry-item">
+                <span class="t-lbl">DSN LINK</span>
+                <span class="t-val"><span class="live-dot"></span><b id="menu-link">CHECKING</b></span>
+              </div>
+              <div class="telemetry-item">
+                <span class="t-lbl">KORA AI</span>
+                <span class="t-val ok">READY</span>
+              </div>
+              <div class="telemetry-item">
+                <span class="t-lbl">FOLD COIL</span>
+                <span class="t-val ok">ONLINE</span>
+              </div>
+              <div class="telemetry-item">
+                <span class="t-lbl">SIM CORE</span>
+                <span class="t-val">v2.4-SCI</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-ticker"><div id="menu-ticker-text"></div></div>
+    </div>
+
     <div id="profile-screen" class="screen hidden">
-      <div class="panel large">
+      <div class="panel large holo-panel">
         <h2>Junior Explorer Registration</h2>
         <p class="panel-sub">Mission Control needs a few details before launch.</p>
         <div class="profile-row">
           <label>Explorer Name</label>
           <input type="text" id="profile-name" maxlength="16" placeholder="e.g. Nova" value="">
         </div>
-        <div class="profile-row">
-          <label>Avatar</label>
-          <div class="option-grid" id="avatar-options"></div>
-        </div>
-        <div class="profile-row">
-          <label>Suit Accent</label>
-          <div class="option-grid" id="accent-options"></div>
-        </div>
-        <div class="profile-row">
-          <label>Helmet Style</label>
-          <div class="option-grid" id="helmet-options"></div>
-        </div>
-        <div class="profile-row">
-          <label>Exploration Badge</label>
-          <div class="option-grid" id="badge-options"></div>
-        </div>
+        <div class="profile-row"><label>Avatar</label><div class="option-grid" id="avatar-options"></div></div>
+        <div class="profile-row"><label>Suit Accent</label><div class="option-grid" id="accent-options"></div></div>
+        <div class="profile-row"><label>Helmet Style</label><div class="option-grid" id="helmet-options"></div></div>
+        <div class="profile-row"><label>Exploration Badge</label><div class="option-grid" id="badge-options"></div></div>
         <div class="panel-buttons">
           <button class="menu-btn" id="btn-profile-back">Back</button>
           <button class="menu-btn primary" id="btn-profile-done">Begin Training</button>
         </div>
       </div>
     </div>
+
     <div id="briefing-screen" class="screen hidden">
-      <div class="panel large">
+      <div class="panel large holo-panel">
         <h2>Mission Briefing</h2>
         <div id="briefing-text"></div>
         <div class="panel-buttons">
@@ -101,27 +288,29 @@
         </div>
       </div>
     </div>
+
     <div id="kora-panel" class="side-panel hidden">
       <div class="panel-header">
-        <img src="assets/img/kora.svg" alt="KORA" class="panel-header-icon">
+        <div class="panel-header-icon"><canvas id="holo-mini" width="84" height="84"></canvas></div>
         <div>
           <div class="panel-title">KORA</div>
-          <div class="panel-subtitle">Knowledge &amp; Orbital Reconnaissance Assistant</div>
+          <div class="panel-subtitle">Knowledge &amp; Orbital Reconnaissance Assistant &bull; live-linked</div>
         </div>
         <button class="panel-close" data-close="kora-panel">&times;</button>
       </div>
       <div id="kora-messages"></div>
+      <div id="kora-suggestions"></div>
+      <div id="kora-listening" class="hidden">Listening...</div>
       <div id="kora-input-row">
-        <button id="kora-mic" title="Speak to KORA">&#127908;</button>
-        <input type="text" id="kora-input" placeholder="Ask KORA a question..." autocomplete="off">
+        <button id="kora-mic" title="Speak to KORA">MIC</button>
+        <input type="text" id="kora-input" placeholder="Ask KORA anything about space..." autocomplete="off">
         <button id="kora-send">Send</button>
       </div>
-      <div id="kora-listening" class="hidden">Listening...</div>
-      <div id="kora-suggestions"></div>
     </div>
+
     <div id="journal-panel" class="side-panel wide hidden">
       <div class="panel-header">
-        <div class="panel-header-icon journal-icon">&#128214;</div>
+        <div class="panel-header-icon">&#9636;</div>
         <div>
           <div class="panel-title">Explorer's Journal</div>
           <div class="panel-subtitle" id="journal-progress">0 / 0 entries</div>
@@ -131,21 +320,38 @@
       <div id="journal-tabs"></div>
       <div id="journal-content"></div>
     </div>
-    <div id="map-panel" class="side-panel wide hidden">
-      <div class="panel-header">
-        <div class="panel-header-icon map-icon">&#9788;</div>
+
+    <div id="map-panel" class="hidden">
+      <div class="map-header">
         <div>
-          <div class="panel-title">Navigation Map</div>
-          <div class="panel-subtitle">Compressed game scale &bull; not to real proportions</div>
+          <div class="panel-title">STELLAR CARTOGRAPHY</div>
+          <div class="panel-subtitle">Sol System &bull; compressed scale &bull; scroll to zoom, drag to pan</div>
         </div>
+        <div class="map-layers" id="map-layers"></div>
         <button class="panel-close" data-close="map-panel">&times;</button>
       </div>
-      <canvas id="map-canvas" width="720" height="480"></canvas>
-      <div id="map-legend"></div>
+      <div class="map-body">
+        <div class="map-view">
+          <canvas id="map-canvas" width="720" height="480"></canvas>
+          <div id="map-tooltip" class="hidden"></div>
+          <div class="map-zoom">
+            <button id="map-zoom-in">+</button>
+            <button id="map-zoom-out">&minus;</button>
+            <button id="map-center-ship" title="Center on ship">&#9650;</button>
+            <button id="map-center-target" title="Center on target">&#9678;</button>
+            <button id="map-reset" title="Reset view">&#8634;</button>
+          </div>
+        </div>
+        <div class="map-side">
+          <div id="map-info"></div>
+          <div id="map-legend"></div>
+        </div>
+      </div>
     </div>
+
     <div id="quiz-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon quiz-icon">&#10067;</div>
+        <div class="panel-header-icon">&#10067;</div>
         <div>
           <div class="panel-title" id="quiz-title">Knowledge Check</div>
           <div class="panel-subtitle" id="quiz-subtitle"></div>
@@ -154,9 +360,10 @@
       </div>
       <div id="quiz-body"></div>
     </div>
+
     <div id="scan-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon scan-icon">&#8982;</div>
+        <div class="panel-header-icon">&#8982;</div>
         <div>
           <div class="panel-title" id="scan-title">Scanner</div>
           <div class="panel-subtitle" id="scan-subtitle">No target</div>
@@ -165,9 +372,10 @@
       </div>
       <div id="scan-body"></div>
     </div>
+
     <div id="npc-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon npc-icon" id="npc-icon">&#128100;</div>
+        <div class="panel-header-icon" id="npc-icon">&#9673;</div>
         <div>
           <div class="panel-title" id="npc-name">Astronaut</div>
           <div class="panel-subtitle" id="npc-role"></div>
@@ -176,20 +384,22 @@
       </div>
       <div id="npc-body"></div>
     </div>
+
     <div id="station-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon station-icon">&#9878;</div>
+        <div class="panel-header-icon">&#9878;</div>
         <div>
           <div class="panel-title" id="station-name">Station</div>
-          <div class="panel-subtitle">Orbital Hub</div>
+          <div class="panel-subtitle">Orbital Hub &bull; docked</div>
         </div>
         <button class="panel-close" data-close="station-panel">&times;</button>
       </div>
       <div id="station-body"></div>
     </div>
+
     <div id="settings-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon settings-icon">&#9881;</div>
+        <div class="panel-header-icon">&#9881;</div>
         <div>
           <div class="panel-title">Settings</div>
           <div class="panel-subtitle">Display &amp; audio preferences</div>
@@ -206,33 +416,43 @@
         <div class="setting-row"><label>Text Size</label>
           <select id="set-textsize"><option value="normal">Normal</option><option value="large">Large</option><option value="xlarge">Extra Large</option></select>
         </div>
+        <div class="setting-row"><label>Backup Save File</label><span class="setting-btns"><button class="toggle" id="set-export">Download</button><button class="toggle" id="set-import">Load File</button></span></div>
         <div class="setting-row danger"><label>Save Data</label><button class="toggle" id="set-wipe">Erase Save</button></div>
+        <input type="file" id="save-file-input" accept=".json,application/json" hidden>
       </div>
     </div>
+
     <div id="howto-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon howto-icon">&#10067;</div>
+        <div class="panel-header-icon">&#10067;</div>
         <div>
-          <div class="panel-title">How to Play</div>
+          <div class="panel-title">Flight Manual</div>
           <div class="panel-subtitle">Explorer training manual</div>
         </div>
         <button class="panel-close" data-close="howto-panel">&times;</button>
       </div>
       <div class="howto-body">
-        <h3>Your Ship</h3>
-        <p><b>WASD / Arrows</b> — thrust &nbsp; <b>Mouse drag</b> — camera &nbsp; <b>Wheel</b> — zoom</p>
-        <p><b>E</b> — interact / dock / land &nbsp; <b>Q</b> — scan &nbsp; <b>Space</b> — stabilise</p>
-        <h3>Your Rover</h3>
-        <p><b>WASD</b> — drive &nbsp; <b>E</b> — scan / collect &nbsp; <b>R</b> — return to ship</p>
+        <h3>Cockpit Flight</h3>
+        <p><kbd>W</kbd>/<kbd>S</kbd> thrust &nbsp; <kbd>A</kbd>/<kbd>D</kbd> turn &nbsp; <kbd>&uarr;</kbd>/<kbd>&darr;</kbd> pitch &nbsp; <kbd>Shift</kbd> boost &nbsp; <kbd>Space</kbd> brake</p>
+        <p><kbd>Drag mouse</kbd> to steer the ship &nbsp; <kbd>R</kbd>/<kbd>F</kbd> rise / descend</p>
+        <p><kbd>E</kbd> dock / land &nbsp; <kbd>Q</kbd> scan planets, moons, asteroids and comets</p>
+        <h3>Rover</h3>
+        <p><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Drag</kbd> look around &nbsp; <kbd>R</kbd> return to ship</p>
         <h3>Tools</h3>
-        <p><b>M</b> — map &nbsp; <b>J</b> — journal &nbsp; <b>K</b> — talk to KORA</p>
-        <h3>The Loop</h3>
-        <p>Travel &rarr; Scan &rarr; Ask KORA &rarr; Complete missions &rarr; Fill your Journal &rarr; Unlock new worlds.</p>
+        <p><kbd>M</kbd> star map &nbsp; <kbd>J</kbd> journal &nbsp; <kbd>K</kbd> talk to KORA</p>
+        <h3>Living Universe</h3>
+        <p>Space around you is charted in real time as you fly. Earth is home sector 00:00. Real moons, asteroids and comets appear as you approach, and KORA pulls live knowledge about them from Wikipedia and Wikidata.</p>
+        <h3>Real Spacecraft &amp; Landing Sites</h3>
+        <p>Real satellites orbit the planets: the ISS, Hubble, Tiangong, GPS, NavIC, Landsat, the James Webb Space Telescope, Chandrayaan-2, Mangalyaan, Juno and more. Glowing amber pins mark real landing sites at their true latitude and longitude &mdash; Apollo 11, Chandrayaan-3, Curiosity, Perseverance, Venera, Huygens and others. Fly close and press <kbd>Q</kbd> to scan them.</p>
+        <h3>Beyond the Solar System</h3>
+        <p>Open the Map and tap <b>BEYOND</b>. Golden arrows show real probes (Voyager 1 and 2, New Horizons), the Oort Cloud, nearby stars such as Alpha Centauri and Sirius, TRAPPIST-1, Betelgeuse, the Orion Nebula, the black hole Sagittarius A* and the Andromeda Galaxy. Plot a course and fly, or use a Fold Jump (15% fuel). Past Neptune, press <kbd>H</kbd> (or JUMP) for the Jump Drive: it cruises at high speed and stops near objects. <kbd>B</kbd> (or HOME) returns to Earth at any time, and <kbd>R</kbd> (or SHIP) brings the rover back to the ship. Distances are shrunk millions of times in the game; each scan shows the real distance in light-years.</p>
+        <p class="howto-note">Planet textures by Solar System Scope (solarsystemscope.com), CC BY 4.0. Knowledge from Wikipedia &amp; Wikidata.</p>
         <p class="howto-note">Wrong answers never end the game. KORA will help you learn and try again.</p>
       </div>
     </div>
+
     <div id="report-screen" class="screen hidden">
-      <div class="panel large">
+      <div class="panel large holo-panel">
         <h2>The Explorer's Field Report</h2>
         <p class="panel-sub">Select the evidence you gathered on your expedition.</p>
         <div id="report-body"></div>
@@ -241,46 +461,75 @@
         </div>
       </div>
     </div>
+
     <div id="credits-screen" class="screen hidden">
       <div class="credits-content">
         <h1>Expedition Complete</h1>
         <div id="credits-text"></div>
         <div class="credits-kora">"Mission complete. You started by asking where the Moon was. You ended by explaining why it has craters. Acceptable progress."</div>
-        <div class="credits-kora-name">— KORA</div>
+        <div class="credits-kora-name">&mdash; KORA</div>
         <button class="menu-btn primary" id="btn-credits-menu">Return to Main Menu</button>
       </div>
     </div>
+
     <div id="notification-area"></div>
     <div id="discovery-toast" class="hidden">
-      <div class="discovery-icon">&#10024;</div>
+      <div class="discovery-lines"></div>
+      <div class="discovery-icon">&#9670;</div>
       <div>
         <div class="discovery-title">New Discovery</div>
         <div class="discovery-text"></div>
       </div>
     </div>
     <div id="fade-overlay"></div>
+    <div id="boot-screen">
+      <div id="boot-log"></div>
+      <div class="boot-skip">click to skip</div>
+    </div>
+    <div id="rotate-screen">
+      <div class="rotate-phone"></div>
+      <div class="rotate-title">ROTATE DEVICE</div>
+      <div class="rotate-sub">The EX-01 cockpit works in landscape mode only.</div>
+    </div>
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/data/planets.js"></script>
-<script src="js/data/knowledge.js"></script>
-<script src="js/data/questions.js"></script>
-<script src="js/data/missions.js"></script>
-<script src="js/data/koraLines.js"></script>
-<script src="js/data/npc.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/voice.js"></script>
-<script src="js/save.js"></script>
-<script src="js/kora.js"></script>
-<script src="js/world.js"></script>
-<script src="js/ship.js"></script>
-<script src="js/rover.js"></script>
-<script src="js/scanner.js"></script>
-<script src="js/missions.js"></script>
-<script src="js/journal.js"></script>
-<script src="js/quiz.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="js/utils.js?v=24"></script>
+<script src="js/data/planets.js?v=24"></script>
+<script src="js/data/knowledge.js?v=24"></script>
+<script src="js/data/questions.js?v=24"></script>
+<script src="js/data/missions.js?v=24"></script>
+<script src="js/data/koraLines.js?v=24"></script>
+<script src="js/data/npc.js?v=24"></script>
+<script src="js/data/terrains.js?v=24"></script>
+<script src="js/data/spacecraft.js?v=24"></script>
+<script src="js/data/deep.js?v=24"></script>
+<script src="js/audio.js?v=24"></script>
+<script src="js/voice.js?v=24"></script>
+<script src="js/save.js?v=24"></script>
+<script src="js/codex.js?v=24"></script>
+<script src="js/kora.js?v=24"></script>
+<script src="js/world.js?v=24"></script>
+<script src="js/sectors.js?v=24"></script>
+<script src="js/spacecraft.js?v=24"></script>
+<script src="js/deepspace.js?v=24"></script>
+<script src="js/ship.js?v=24"></script>
+<script src="js/rover.js?v=24"></script>
+<script src="js/scanner.js?v=24"></script>
+<script src="js/missions.js?v=24"></script>
+<script src="js/journal.js?v=24"></script>
+<script src="js/quiz.js?v=24"></script>
+<script src="js/holo.js?v=24"></script>
+<script src="js/hud.js?v=24"></script>
+<script src="js/starmap.js?v=24"></script>
+<script src="js/touch.js?v=24"></script>
+<script src="js/ui.js?v=24"></script>
+<script src="js/main.js?v=24"></script>
 </body>
 </html>

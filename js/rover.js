@@ -3,10 +3,12 @@ window.G = window.G || {};
 G.Rover = (function () {
   const U = G.utils;
   const keys = {};
+  let touchStates = { w: false, up: false, s: false, down: false, a: false, left: false, d: false, right: false };
   let active = false;
-  let camYaw = 0, camPitch = 0.5, camDist = 14;
+  let lookYaw = 0, lookPitch = -0.08;
   let dragging = false, lastX = 0, lastY = 0;
-  let wheelSpin = 0;
+  let wheelSpin = 0, bob = 0;
+  const analog = { x: 0, y: 0 };
 
   function bind(canvas) {
     canvas.addEventListener('mousedown', function (e) {
@@ -16,18 +18,30 @@ G.Rover = (function () {
     window.addEventListener('mouseup', function () { dragging = false; });
     window.addEventListener('mousemove', function (e) {
       if (!active || !dragging) return;
-      camYaw -= (e.clientX - lastX) * 0.005;
-      camPitch = U.clamp(camPitch + (e.clientY - lastY) * 0.004, 0.1, 1.3);
+      lookYaw = U.clamp(lookYaw - (e.clientX - lastX) * 0.004, -2.4, 2.4);
+      lookPitch = U.clamp(lookPitch - (e.clientY - lastY) * 0.003, -0.9, 0.9);
       lastX = e.clientX; lastY = e.clientY;
     });
-    canvas.addEventListener('wheel', function (e) {
+    canvas.addEventListener('touchstart', function (e) {
       if (!active) return;
-      camDist = U.clamp(camDist + e.deltaY * 0.02, 7, 40);
-    }, { passive: true });
+      dragging = true;
+      lastX = e.targetTouches[0].clientX; lastY = e.targetTouches[0].clientY;
+    });
+    canvas.addEventListener('touchend', function () { dragging = false; });
+    canvas.addEventListener('touchmove', function (e) {
+      if (!active || !dragging || !e.targetTouches.length) return;
+      e.preventDefault();
+      const tt = e.targetTouches[0];
+      lookYaw = U.clamp(lookYaw - (tt.clientX - lastX) * 0.005, -2.4, 2.4);
+      lookPitch = U.clamp(lookPitch - (tt.clientY - lastY) * 0.004, -0.9, 0.9);
+      lastX = tt.clientX; lastY = tt.clientY;
+    }, { passive: false });
   }
 
-  function activate() { active = true; }
+  function activate() { active = true; G.World.mode = 'rover'; lookYaw = 0; lookPitch = -0.08; }
   function deactivate() { active = false; }
+  function setTouchStates(states) { Object.assign(touchStates, states); }
+  let cruise = 0;
 
   function place(x, z) {
     const rover = G.World.rover;
@@ -46,18 +60,23 @@ G.Rover = (function () {
     const rover = G.World.rover;
     if (!rover || !rover.group.visible) return null;
     const group = rover.group;
-    const maxSpeed = 14;
-    let accel = 0;
+    const maxSpeed = 16;
+    let accel = 0, steer = 0;
 
     if (active) {
-      if (keys['KeyW'] || keys['ArrowUp']) accel = 16;
-      if (keys['KeyS'] || keys['ArrowDown']) accel = -10;
-      if (keys['KeyA'] || keys['ArrowLeft']) rover.heading += dt * 1.8;
-      if (keys['KeyD'] || keys['ArrowRight']) rover.heading -= dt * 1.8;
+      if (keys['KeyW'] || keys['ArrowUp'] || touchStates.w || touchStates.up) accel = 18;
+      if (keys['KeyS'] || keys['ArrowDown'] || touchStates.s || touchStates.down) accel = -11;
+      else if (!accel && cruise > 0.02) accel = 18 * cruise;
+      if (keys['KeyA'] || keys['ArrowLeft'] || touchStates.a || touchStates.left) steer = 1;
+      if (keys['KeyD'] || keys['ArrowRight'] || touchStates.d || touchStates.right) steer = -1;
+      if (Math.abs(analog.y) > 0.08) accel = analog.y < 0 ? -analog.y * 18 : -analog.y * 11;
+      if (Math.abs(analog.x) > 0.08) steer = -analog.x;
     }
+    rover.heading += steer * dt * 1.6 * U.clamp(Math.abs(rover.speed) / 4 + 0.35, 0, 1) * (rover.speed < -0.1 ? -1 : 1);
+    if (!dragging) lookYaw = U.lerp(lookYaw, 0, Math.min(1, dt * 0.8));
 
     rover.speed += accel * dt;
-    rover.speed *= Math.max(0, 1 - dt * 2.2);
+    rover.speed *= Math.max(0, 1 - dt * 2.0);
     rover.speed = U.clamp(rover.speed, -maxSpeed * 0.5, maxSpeed);
 
     const dx = Math.sin(rover.heading) * rover.speed * dt;
@@ -66,42 +85,50 @@ G.Rover = (function () {
     const nz = group.position.z + dz;
     const curY = group.position.y;
     const newY = G.World.groundY(nx, nz);
-    const slope = Math.abs(newY - curY);
-    if (slope < 2.5) {
+    if (Math.abs(newY - curY) < 2.5 && Math.hypot(nx, nz) < 760) {
       group.position.x = nx;
       group.position.z = nz;
       group.position.y = U.lerp(curY, newY, Math.min(1, dt * 8));
     } else {
-      rover.speed *= 0.5;
+      rover.speed *= -0.3;
     }
 
-    group.rotation.y = rover.heading;
+    const ahead = G.World.groundY(nx + Math.sin(rover.heading) * 1.5, nz + Math.cos(rover.heading) * 1.5);
+    const tilt = Math.atan2(ahead - newY, 1.5);
+    group.rotation.set(-tilt * 0.8, rover.heading, 0, 'YXZ');
     wheelSpin += rover.speed * dt * 2;
-    group.children.forEach(function (c) {
-      if (c.name === 'wheel') c.rotation.x = wheelSpin;
-    });
+    group.children.forEach(function (c) { if (c.name === 'wheel') c.rotation.x = wheelSpin; });
 
+    bob += Math.abs(rover.speed) * dt * 1.6;
     const cam = G.World.camera;
-    const cx = group.position.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist;
-    const cy = group.position.y + Math.sin(camPitch) * camDist + 2;
-    const cz = group.position.z + Math.cos(camYaw) * Math.cos(camPitch) * camDist;
-    cam.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 5));
-    cam.lookAt(group.position.x, group.position.y + 1.5, group.position.z);
+    const fwdX = Math.sin(rover.heading), fwdZ = Math.cos(rover.heading);
+    cam.position.set(
+      group.position.x + fwdX * 0.9,
+      group.position.y + 2.55 + Math.sin(bob * 3) * 0.04 * Math.min(1, Math.abs(rover.speed) / 5),
+      group.position.z + fwdZ * 0.9
+    );
+    cam.rotation.set(lookPitch - tilt * 0.6, rover.heading + Math.PI + lookYaw, 0, 'YXZ');
+    if (Math.abs(cam.fov - 72) > 0.05) { cam.fov = 72; cam.updateProjectionMatrix(); }
 
     const near = G.World.nearestPOI(group.position, 20);
-    return { speed: Math.abs(rover.speed), nearPOI: near };
+    return { speed: Math.abs(rover.speed), nearPOI: near, throttle: rover.speed / maxSpeed };
   }
 
   function position() {
     return G.World.rover.group.position;
   }
 
+  function heading() { return (G.World.rover ? G.World.rover.heading + Math.PI : 0) + lookYaw; }
+
   function down(e) { keys[e.code] = true; }
   function up(e) { keys[e.code] = false; }
 
   return {
     bind: bind, activate: activate, deactivate: deactivate,
-    update: update, place: place, hide: hide, position: position,
-    down: down, up: up
+    update: update, place: place, hide: hide, position: position, heading: heading,
+    down: down, up: up, setTouchStates: setTouchStates,
+    setCruise: function (v) { cruise = v; },
+    setAnalog: function (x, y) { analog.x = x; analog.y = y; },
+    isActive: function () { return active; }
   };
 })();

@@ -13,41 +13,64 @@ G.UI = (function () {
     n.className = 'notification ' + (type || 'info');
     n.textContent = text;
     area.appendChild(n);
+    if (type === 'bad') G.Audio.play('alert'); else if (type !== 'info') G.Audio.play('notify');
     setTimeout(function () { n.classList.add('fadeout'); }, 2600);
     setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 3100);
   }
 
   function discoveryToast(title, text) {
     const t = U.el('discovery-toast');
+    t.querySelector('.discovery-title').textContent = title || 'New Discovery';
     t.querySelector('.discovery-text').textContent = text;
+    t.classList.add('hidden');
+    void t.offsetWidth;
     t.classList.remove('hidden');
     t.classList.remove('fadeout');
-    setTimeout(function () { t.classList.add('fadeout'); }, 3200);
-    setTimeout(function () { t.classList.add('hidden'); }, 3800);
+    clearTimeout(t._a); clearTimeout(t._b);
+    t._a = setTimeout(function () { t.classList.add('fadeout'); }, 3200);
+    t._b = setTimeout(function () { t.classList.add('hidden'); }, 3800);
+    if (G.Holo) G.Holo.mood('happy', 3);
   }
 
-  function koraSay(text) {
-    addKoraMessage(text, 'kora');
+  function koraSay(text, live) {
+    addKoraMessage(text, 'kora', live);
     const st = G.Save.get();
     if (st.settings.voice) {
       G.Audio.speak(text, st.settings.rate);
     }
-    const mini = U.el('kora-mini-text');
-    if (mini) mini.textContent = text.length > 60 ? text.slice(0, 60) + '...' : text;
+    if (G.Holo) G.Holo.speak(text);
   }
 
-  function addKoraMessage(text, who) {
+  function koraVoice(text) {
+    if (!text) return;
+    const st = G.Save.get();
+    if (st.settings.voice) G.Audio.speak(text, st.settings.rate);
+    if (G.Holo) G.Holo.speak(text);
+  }
+
+  function addKoraMessage(text, who, live) {
     const box = U.el('kora-messages');
-    if (!box) return;
+    if (!box) return null;
     const div = document.createElement('div');
-    div.className = 'kora-msg ' + who;
+    div.className = 'kora-msg ' + who + (live ? ' live' : '');
     const tag = document.createElement('span');
     tag.className = 'msg-tag';
-    tag.textContent = who === 'kora' ? 'KORA' : 'You';
+    tag.textContent = who === 'kora' ? (live ? 'KORA // LIVE LINK' : 'KORA') : 'You';
     div.appendChild(tag);
     div.appendChild(document.createTextNode(text));
+    if (live && live.url) {
+      const src = document.createElement('a');
+      src.className = 'msg-src';
+      src.href = live.url;
+      src.target = '_blank';
+      src.rel = 'noopener noreferrer';
+      src.textContent = 'Source: Wikipedia \u2014 ' + live.title;
+      src.style.color = 'inherit';
+      div.appendChild(src);
+    }
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
+    return div;
   }
 
   function openKora() {
@@ -72,7 +95,10 @@ G.UI = (function () {
   function renderSuggestions() {
     const box = U.el('kora-suggestions');
     box.innerHTML = '';
-    const sugg = G.KORA_LINES.suggestions;
+    const sugg = G.KORA_LINES.suggestions.slice(0, 4);
+    const nb = G.World.nearestBody(G.Ship.position(), 600);
+    if (nb && nb.body) sugg.unshift('Tell me about ' + nb.body.def.name.replace(/^The /, 'the '));
+    sugg.push('What is a black hole?', 'How do stars form?');
     for (let i = 0; i < sugg.length; i++) {
       const chip = document.createElement('button');
       chip.className = 'suggestion-chip';
@@ -85,9 +111,34 @@ G.UI = (function () {
   function sendKora(text) {
     if (!text || !text.trim()) return;
     addKoraMessage(text, 'player');
+    answer(text);
+  }
+
+  // Local knowledge first; unknown or weak matches go to the live Wikipedia link.
+  function answer(text) {
     G.Save.recordQuestion();
     G.Audio.play('radio');
     const res = G.Kora.respond(text);
+    const casual = res.intent === 'CASUAL' || res.intent === 'MISSION_HELP' || res.intent === 'NAVIGATION_HELP' || res.intent === 'QUIZ_HINT';
+    if ((res.intent === 'UNKNOWN' || res.weak) && !casual) {
+      const typing = addKoraMessage('Querying the Deep Space Network', 'kora', { title: '' });
+      if (typing) { typing.classList.add('typing'); typing.querySelector('.msg-src') && typing.querySelector('.msg-src').remove(); }
+      if (G.Holo) G.Holo.mood('think', 3);
+      const ctx = G.World.terrainBody || (G.World.nearestBody(G.Ship.position(), 400) || {}).body;
+      const ctxName = typeof ctx === 'string' ? G.World.bodies[ctx].def.name : (ctx ? ctx.def.name : null);
+      G.Codex.ask(text, ctxName).then(function (live) {
+        if (typing) typing.remove();
+        if (live && live.text) {
+          koraSay(live.text, live);
+          G.Codex.record({ title: live.title, extract: live.text, thumb: live.thumb, url: live.url, description: live.description });
+          G.Journal.refresh();
+        } else {
+          koraSay(res.text);
+        }
+        checkQuestionBadge();
+      });
+      return;
+    }
     setTimeout(function () {
       koraSay(res.text);
       if (res.topic && res.topic.id) {
@@ -95,7 +146,7 @@ G.UI = (function () {
         G.Journal.refresh();
       }
       checkQuestionBadge();
-    }, 500);
+    }, 450);
   }
 
   function checkQuestionBadge() {
@@ -135,9 +186,7 @@ G.UI = (function () {
       U.show('kora-listening');
       const ok = G.Voice.start(function (transcript) {
         addKoraMessage(transcript, 'player');
-        G.Save.recordQuestion();
-        const res = G.Kora.respond(transcript);
-        setTimeout(function () { koraSay(res.text); }, 400);
+        answer(transcript);
       }, function () {
         btn.classList.remove('listening');
         U.hide('kora-listening');
@@ -175,6 +224,11 @@ G.UI = (function () {
     U.el('status-power').textContent = Math.round(st.power) + '%';
     const near = G.World.nearestBody(G.Ship.position(), 200);
     let dest = 'Deep Space';
+    const sp = G.Ship.position();
+    const region = G.DeepSpace.regionName(sp);
+    if (region) dest = region;
+    const dn = G.DeepSpace.nearest(sp, 400);
+    if (dn) dest = dn.a.name + ' \u2014 Near';
     if (near) {
       dest = near.body.def.name;
       if (near.dist < near.body.def.radius + 30) dest += ' — Near';
@@ -182,157 +236,115 @@ G.UI = (function () {
     U.el('hud-dest-name').textContent = dest;
   }
 
+  function setWaypoint(data) {
+    const el = U.el('objective-nav');
+    if (!el) return;
+    if (!data) { el.classList.add('hidden'); return; }
+    const d = data.dist;
+    const distText = d >= 1000 ? (d / 1000).toFixed(1) + 'k' : Math.round(d) + 'm';
+    el.innerHTML = '<span class="nav-arrow">&#10148;</span>' + G.Codex.esc(data.label) +
+      ' <span class="nav-dist">' + distText + '</span>';
+    el.classList.remove('hidden');
+  }
+
   function setInteract(text) {
     const el = U.el('hud-interact');
+    const act = U.el('m-act');
     if (text) {
-      el.innerHTML = text;
+      if (G.Touch && G.Touch.enabled()) text = text.replace(/^Press (E or Q|Q) to scan/, 'Tap SCAN to scan').replace(/^Press [A-Z] to/, 'Tap \u25C6 to');
+      el.textContent = text;
       el.classList.remove('hidden');
     } else {
       el.classList.add('hidden');
     }
+    if (act) {
+      const label = !text ? 'GO' : /land/i.test(text) ? 'LAND' : /dock/i.test(text) ? 'DOCK' : /return/i.test(text) ? 'BOARD' : /scan/i.test(text) ? 'SCAN' : 'GO';
+      act.querySelector('b').textContent = label;
+      act.classList.toggle('ready', !!text);
+    }
   }
-  function openMap() {
-    mapOpen = true;
-    U.show('map-panel');
-    drawMap();
-  }
+  function openMap() { G.StarMap.open(); }
+  function closeMap() { G.StarMap.close(); }
+  function toggleMap() { G.StarMap.toggle(); }
+  function drawMap() { }
 
-  function closeMap() {
-    mapOpen = false;
-    U.hide('map-panel');
-  }
-
-  function toggleMap() {
-    if (mapOpen) closeMap(); else openMap();
-  }
-
-  function drawMap() {
-    const canvas = U.el('map-canvas');
-    const g = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2;
-    g.fillStyle = '#02060e';
-    g.fillRect(0, 0, W, H);
-    g.strokeStyle = 'rgba(79,216,255,0.12)';
-    g.lineWidth = 1;
-    const scale = 0.85;
-    const ids = Object.keys(G.PLANETS);
-    for (let i = 0; i < ids.length; i++) {
-      const p = G.PLANETS[ids[i]];
-      if (p.parent) continue;
-      g.beginPath();
-      g.arc(cx, cy, p.distance * scale, 0, Math.PI * 2);
-      g.stroke();
-    }
-    const sunGrad = g.createRadialGradient(cx, cy, 0, cx, cy, 26);
-    sunGrad.addColorStop(0, '#ffe873');
-    sunGrad.addColorStop(1, '#f0a830');
-    g.fillStyle = sunGrad;
-    g.beginPath(); g.arc(cx, cy, 18, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#ffd23f';
-    g.font = 'bold 11px sans-serif';
-    g.textAlign = 'center';
-    g.fillText('SUN', cx, cy + 34);
-
-    const st = G.Save.get();
-    const unlocked = ['earth', 'moon', 'mars'];
-    const shipPos = G.Ship.position();
-    let shipBody = null, shipD = 1e9;
-    for (let i = 0; i < ids.length; i++) {
-      const p = G.PLANETS[ids[i]];
-      const b = G.World.bodies[p.id];
-      if (!b || !b.worldPos) continue;
-      const d = shipPos.distanceTo(b.worldPos);
-      if (d < shipD) { shipD = d; shipBody = p; }
-    }
-
-    for (let i = 0; i < ids.length; i++) {
-      const p = G.PLANETS[ids[i]];
-      const b = G.World.bodies[p.id];
-      if (!b || !b.worldPos) continue;
-      const x = cx + (b.worldPos.x / (p.distance || 1)) * p.distance * scale;
-      const y = cy + (b.worldPos.z / (p.distance || 1)) * p.distance * scale;
-      const isUnlocked = unlocked.indexOf(p.id) >= 0;
-      const isCurrent = shipBody && shipBody.id === p.id;
-      g.fillStyle = isUnlocked ? p.color : 'rgba(120,130,145,0.5)';
-      g.beginPath(); g.arc(x, y, Math.max(4, p.radius * 0.55), 0, Math.PI * 2); g.fill();
-      g.fillStyle = isUnlocked ? '#d8f2ff' : 'rgba(160,170,185,0.6)';
-      g.font = (isCurrent ? 'bold ' : '') + '11px sans-serif';
-      g.fillText(p.name + (isUnlocked ? '' : ' (locked)'), x, y + Math.max(10, p.radius * 0.55 + 8));
-      if (isCurrent) {
-        g.strokeStyle = '#ffb347';
-        g.lineWidth = 2;
-        g.beginPath(); g.arc(x, y, Math.max(8, p.radius * 0.55 + 5), 0, Math.PI * 2); g.stroke();
-        g.lineWidth = 1;
-      }
-    }
-
-    const stIds = Object.keys(G.STATIONS);
-    for (let i = 0; i < stIds.length; i++) {
-      const s = G.World.stations[stIds[i]];
-      if (!s || !s.worldPos) continue;
-      const p = G.PLANETS[s.def.parent];
-      const x = cx + (s.worldPos.x / (p.distance || 1)) * p.distance * scale;
-      const y = cy + (s.worldPos.z / (p.distance || 1)) * p.distance * scale;
-      g.fillStyle = '#4fd8ff';
-      g.fillRect(x - 4, y - 4, 8, 8);
-      g.font = '10px sans-serif';
-      g.fillText(s.def.name, x, y + 14);
-    }
-
-    const m = G.Missions.current();
-    if (m) {
-      const step = G.Missions.currentStep();
-      let legend = 'Current mission: ' + m.title;
-      if (step) legend += ' — ' + step.text;
-      U.el('map-legend').innerHTML = '<span class="legend-target">' + legend + '</span><br>Click a planet to travel there (unlocked destinations only).';
-    } else {
-      U.el('map-legend').textContent = 'All missions complete.';
-    }
-
-    canvas.onclick = function (e) {
-      const rect = canvas.getBoundingClientRect();
-      const mx = (e.clientX - rect.left) * (W / rect.width);
-      const my = (e.clientY - rect.top) * (H / rect.height);
-      for (let i = 0; i < ids.length; i++) {
-        const p = G.PLANETS[ids[i]];
-        if (unlocked.indexOf(p.id) < 0) continue;
-        const b = G.World.bodies[p.id];
-        if (!b || !b.worldPos) continue;
-        const x = cx + (b.worldPos.x / (p.distance || 1)) * p.distance * scale;
-        const y = cy + (b.worldPos.z / (p.distance || 1)) * p.distance * scale;
-        if (U.dist(mx, my, x, y) < 16) {
-          travelTo(p.id);
-          return;
-        }
-      }
-    };
+  function warp(cb) {
+    const fx = U.el('warp-fx');
+    fx.classList.add('active');
+    G.Audio.play('warp');
+    setTimeout(function () {
+      G.Game.fadeOut(function () {
+        cb();
+        fx.classList.remove('active');
+        G.Game.fadeIn();
+      });
+    }, 900);
   }
 
-  function travelTo(bodyId) {
-    const p = G.PLANETS[bodyId];
+  function travelTo(bodyId, free) {
     const b = G.World.bodies[bodyId];
     if (!b || !b.worldPos) return;
+    const p = b.def;
     const st = G.Save.get();
-    if (st.fuel < 15) {
-      notify('Not enough fuel! Visit a station to refuel.', 'bad');
+    if (!free && st.fuel <= 0) {
+      notify('Out of fuel! Dock at a station to refuel.', 'bad');
       G.Audio.play('error');
       return;
     }
-    st.fuel = Math.max(0, st.fuel - 15);
+    if (!free) st.fuel = Math.max(0, st.fuel - 10);
     G.Save.save();
-    G.Audio.play('dock');
-    G.Game.fadeOut(function () {
-      const offset = p.radius + 26;
+    warp(function () {
+      const offset = p.radius * 2.2 + 18;
       const dir = b.worldPos.clone().normalize();
-      G.Ship.teleport(b.worldPos.x + dir.x * offset, 10, b.worldPos.z + dir.z * offset);
-      G.Game.fadeIn();
+      if (!isFinite(dir.x)) dir.set(1, 0, 0);
+      G.Ship.teleport(b.worldPos.x - dir.x * offset, b.worldPos.y + p.radius * 0.4, b.worldPos.z - dir.z * offset, b.worldPos);
       G.Save.visit(bodyId);
       G.Kora.setContext(bodyId);
       G.Missions.onTravel(bodyId);
       G.UI.notify('Arrived at ' + p.name, 'info');
       G.Audio.startMusic(bodyId === 'earth' ? 'earth' : 'deep');
       checkExplorerBadge();
+    });
+  }
+  function travelToStation(stationId) {
+    const s = G.World.stations[stationId];
+    if (!s || !s.worldPos) return;
+    const st = G.Save.get();
+    if (st.fuel <= 0) {
+      notify('Out of fuel! Dock at a station to refuel.', 'bad');
+      G.Audio.play('error');
+      return;
+    }
+    st.fuel = Math.max(0, st.fuel - 10);
+    G.Save.save();
+    const target = s.worldPos.clone();
+    warp(function () {
+      const dir = target.clone().normalize();
+      G.Ship.teleport(target.x + dir.x * 16, target.y + 3, target.z + dir.z * 16, s.worldPos);
+      G.Save.visit(stationId);
+      G.Missions.onTravel(stationId);
+      G.UI.notify('Arrived at ' + s.def.name, 'info');
+      G.Audio.startMusic('deep');
+    });
+  }
+
+  function travelToDeep(a) {
+    const st = G.Save.get();
+    if (st.fuel < 15) {
+      notify('Deep jumps need at least 15% fuel. Dock at a station to refuel.', 'bad');
+      G.Audio.play('error');
+      return;
+    }
+    st.fuel = Math.max(0, st.fuel - 15);
+    G.Save.save();
+    const target = a.obj.position.clone();
+    warp(function () {
+      const dir = target.clone().normalize();
+      const off = (a.surface || 10) * 1.3 + 60;
+      G.Ship.teleport(target.x - dir.x * off, target.y + 6, target.z - dir.z * off, target);
+      G.UI.notify('Arrived at ' + a.name, 'info');
+      G.UI.koraSay('We are at ' + a.name + '. Press Q to scan it and learn more.');
+      G.Audio.startMusic('deep');
     });
   }
 
@@ -345,26 +357,158 @@ G.UI = (function () {
       }
     }
   }
-  function openScanPanel(poi) {
-    const info = G.Scanner.infoFor(poi.kind);
-    if (!info) return;
+  // ---------- knowledge explorer (scan results, tapped objects, related topics) ----------
+  let kx = null;
+  const kxHistory = [];
+
+  function questionsFor(name, type) {
+    const n = name.replace(/^The /, 'the ');
+    if (/BLACK HOLE/i.test(type)) return ['What is a black hole?', 'What would happen if you fell into ' + n + '?', 'How was ' + n + ' photographed?'];
+    if (/NEBULA|GALAXY|STAR|PLANETARY SYSTEM|EXOPLANET|COMET RESERVOIR/i.test(type)) return ['How far away is ' + n + ' in light-years?', 'What is ' + n + ' made of?', 'How long would it take to travel to ' + n + '?', 'What is a light-year?'];
+    if (/LIVING|FOREST|TREE|LIFE/i.test(type)) return ['Why are ' + n.toLowerCase() + 's important?', 'What animals live in a ' + n.toLowerCase() + '?', 'How do plants make food?'];
+    if (/STORM|CLOUD|WIND|LIGHTNING|ATMOSPHERE|WEATHER/i.test(type)) return ['Why does ' + n + ' happen?', 'How big is ' + n + '?', 'Is there weather on Earth like ' + n + '?'];
+    if (/VOLCANO|GEYSER|PLUME|LAVA/i.test(type)) return ['How do volcanoes work?', 'What comes out of ' + n + '?', 'Is ' + n + ' still active?'];
+    if (/ICE|SNOW|SALT|WATER|LAKE/i.test(type)) return ['What is ' + n + ' made of?', 'Could there be life near ' + n + '?', 'How cold is ' + n + '?'];
+    if (/ROCK|SAMPLE|DUNE|CRATER|DUST/i.test(type)) return ['How did ' + n + ' form?', 'What is ' + n + ' made of?', 'How old is ' + n + '?'];
+    if (/LANDING SITE/i.test(type)) return ['How did ' + n + ' land safely?', 'What did ' + n + ' discover?', 'How do spacecraft land on other worlds?'];
+    if (/SPACECRAFT|STATION|PROBE|SATELLITE|HISTOR|DEBRIS/i.test(type)) return ['What does ' + n + ' do?', 'Who built ' + n + '?', 'How does ' + n + ' stay in orbit?', 'How do spacecraft get power?'];
+    return ['How big is ' + n + '?', 'What is ' + n + ' made of?', 'Who discovered ' + n + '?', 'Could people live on ' + n + '?'];
+  }
+
+  function renderKnowledge(t, scanning) {
+    kx = t;
+    const E = G.Codex.esc;
     U.show('scan-panel');
-    U.el('scan-title').textContent = info.name;
-    U.el('scan-subtitle').textContent = info.type;
-    let html = '<div class="scan-target-name">' + info.name + '</div>';
-    html += '<div class="scan-target-type">' + info.type + '</div>';
-    html += '<div class="scan-observation">' + info.observation + '</div>';
-    html += '<div class="scan-tags">';
-    for (let i = 0; i < info.tags.length; i++) {
-      html += '<span class="scan-tag">' + info.tags[i] + '</span>';
-    }
-    html += '</div>';
-    if (info.knowledgeId && !G.Save.hasKnowledge(info.knowledgeId)) {
-      html += '<div class="scan-unlock">Topic unlocked: ' + info.knowledgeId + '</div>';
-    }
-    html += '<div class="scan-progress-bar"><div class="scan-progress-fill" id="scan-fill"></div></div>';
-    html += '<div class="scan-kora-line">' + info.kora + '</div>';
+    U.el('scan-title').textContent = t.name;
+    U.el('scan-subtitle').textContent = scanning ? 'Scanning...' : (t.type || 'Discovery').toString().toLowerCase();
+    let html = '';
+    if (kxHistory.length) html += '<button class="kx-back" id="kx-back">&#8592; Back to ' + E(kxHistory[kxHistory.length - 1].name) + '</button>';
+    html += '<div class="kx-hero"><div class="kx-img-wrap"><img id="kx-img" alt=""></div><div><div class="kx-type">' + E(t.type || 'DISCOVERY') + '</div><h3>' + E(t.name) + '</h3><div class="kx-desc" id="kx-desc"></div></div></div>';
+    if (scanning) html += '<div class="kx-scan" id="kx-scan"><span>Scanning target</span><div class="scan-progress-bar"><div class="scan-progress-fill" id="scan-fill"></div></div></div>';
+    if (t.observation) html += '<div class="kx-obs">' + E(t.observation) + '</div>';
+    html += '<div class="kx-text" id="kx-text"><span class="kx-loading">Asking the space library</span></div>';
+    html += '<div class="kx-section">Ask KORA</div><div class="kx-chips" id="kx-ask"></div><div id="kx-answer"></div>';
+    html += '<div class="kx-section">Related topics</div><div class="kx-chips" id="kx-rel"><span class="kx-loading">finding topics</span></div>';
+    html += '<div class="kx-actions" id="kx-actions"></div><div class="kx-src" id="kx-src"></div>';
     U.el('scan-body').innerHTML = html;
+    U.el('scan-body').scrollTop = 0;
+    if (U.el('kx-back')) U.el('kx-back').onclick = function () { const prev = kxHistory.pop(); renderKnowledge(prev, false); };
+
+    const ask = U.el('kx-ask');
+    questionsFor(t.name, t.type || '').forEach(function (q) {
+      const b = document.createElement('button');
+      b.className = 'kx-chip ask';
+      b.textContent = q;
+      b.onclick = function () {
+        G.Audio.play('radio');
+        const box = U.el('kx-answer');
+        box.innerHTML = '<div class="kx-answer"><b>' + E(q) + '</b><span class="kx-loading">KORA is thinking</span></div>';
+        if (G.Holo) G.Holo.mood('think', 3);
+        G.Save.recordQuestion();
+        G.Codex.ask(q, null, t.title).then(function (a) {
+          if (!U.el('kx-answer') || kx !== t) return;
+          const text = a && a.text ? a.text : 'Hmm, I could not reach the space library. Try again when we have signal!';
+          box.innerHTML = '<div class="kx-answer"><b>' + E(q) + '</b><span></span></div>';
+          box.querySelector('span').textContent = text;
+          koraSay(text, a && a.url ? a : null);
+          if (a) G.Codex.record({ title: a.title, extract: a.text, thumb: a.thumb, url: a.url, description: a.description });
+          G.Journal.refresh();
+          checkQuestionBadge();
+        });
+      };
+      ask.appendChild(b);
+    });
+
+    const acts = U.el('kx-actions');
+    function action(label, cls, fn) {
+      const b = document.createElement('button');
+      b.className = 'kx-btn ' + cls;
+      b.innerHTML = label;
+      b.onclick = fn;
+      acts.appendChild(b);
+    }
+    if (!scanning && t.canScan) {
+      const ss = G.Game.scanStatus(t);
+      if (ss && !ss.ok) {
+        action('Too far \u2014 fly within ' + Math.round(ss.lim) + 'm (now ' + Math.round(ss.dist) + 'm)', '', function () { G.Game.scanTarget(t); });
+        acts.lastChild.classList.add('disabled');
+      } else action('Scan target', 'primary', function () { G.Game.scanTarget(t); });
+    }
+    if (t.pos && !G.World.terrainBody) action('Plot course', '', function () {
+      G.StarMap.setCourse({ pos: t.pos, label: t.name, radius: t.radius || 4 });
+      notify('Course set: ' + t.name, 'good');
+      closeScanPanel();
+    });
+
+    if (!t.title) {
+      U.el('kx-text').textContent = t.observation ? '' : 'No library entry for this one yet. Scan it to learn more!';
+      U.el('kx-rel').textContent = '';
+      return;
+    }
+    G.Codex.summary(t.title).then(function (d) {
+      if (kx !== t || !U.el('kx-text')) return;
+      if (!d) { U.el('kx-text').textContent = 'No signal to the space library right now. Try again soon!'; return; }
+      U.el('kx-text').textContent = G.Codex.shortText(d.extract, 4);
+      if (!scanning) koraVoice(G.Codex.shortText(d.extract, 2));
+      const obs = U.el('scan-body').querySelector('.kx-obs');
+      if (obs && d.extract.indexOf(obs.textContent.slice(0, 40)) === 0) obs.remove();
+      U.el('kx-desc').textContent = d.description || '';
+      if (d.thumb) { U.el('kx-img').src = d.thumb; U.el('kx-img').parentNode.classList.add('has'); }
+      if (d.url) {
+        const a = document.createElement('a');
+        a.href = d.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = 'Read more on ' + (d.source || 'Wikipedia') + ' \u2197';
+        U.el('kx-src').appendChild(a);
+      }
+      if (G.Codex.record(d)) G.Journal.refresh();
+    });
+    G.Codex.related(t.title, 6).then(function (list) {
+      const rel = U.el('kx-rel');
+      if (kx !== t || !rel) return;
+      rel.innerHTML = '';
+      if (!list.length) { rel.textContent = 'No related topics found.'; return; }
+      list.forEach(function (title) {
+        const b = document.createElement('button');
+        b.className = 'kx-chip';
+        b.textContent = title;
+        b.onclick = function () {
+          G.Audio.play('click');
+          kxHistory.push(t);
+          if (kxHistory.length > 8) kxHistory.shift();
+          renderKnowledge({ name: title, title: title, type: 'Related topic' }, false);
+        };
+        rel.appendChild(b);
+      });
+    });
+  }
+
+  function infoTarget(poi) {
+    const info = G.Scanner.infoFor(poi.kind) || {};
+    return {
+      name: info.name || poi.name, type: info.type, title: info.codex || G.Codex.titleFor(poi.kind),
+      observation: info.observation, poi: poi, canScan: !poi.scanned
+    };
+  }
+
+  function openScanPanel(poi) {
+    kxHistory.length = 0;
+    renderKnowledge(infoTarget(poi), G.Scanner.isScanning());
+  }
+
+  function openInfo(t) {
+    kxHistory.length = 0;
+    G.Audio.play('open');
+    renderKnowledge(t, false);
+  }
+
+  function scanFinished(poi, info) {
+    const s = U.el('kx-scan');
+    if (s) {
+      s.classList.add('done');
+      s.innerHTML = '<span>Scan complete' + (info && info.xp ? ' +' + info.xp + ' XP' : '') + '</span>';
+    }
+    U.el('scan-subtitle').textContent = 'scanned';
+    if (kx && kx.poi === poi) kx.canScan = false;
   }
 
   function updateScanPanel() {
@@ -372,8 +516,7 @@ G.UI = (function () {
     if (fill) fill.style.width = Math.round(G.Scanner.progress() * 100) + '%';
   }
 
-  function closeScanPanel() { U.hide('scan-panel'); }
-
+  function closeScanPanel() { U.hide('scan-panel'); kx = null; }
   function openNpc(npc) {
     currentNpc = npc;
     U.show('npc-panel');
@@ -537,7 +680,7 @@ G.UI = (function () {
     for (let i = 1; i <= 4; i++) {
       const d = document.createElement('div');
       d.className = 'option-item' + (i === 1 ? ' selected' : '');
-      d.innerHTML = '<img src="assets/img/avatar_' + i + '.svg" alt="avatar ' + i + '">';
+      d.innerHTML = '<img src="' + (window.G_ASSETS && G_ASSETS['avatar_' + i + '.svg'] ? G_ASSETS['avatar_' + i + '.svg'] : 'assets/img/avatar_' + i + '.svg') + '" alt="avatar ' + i + '">';
       d.onclick = function () {
         avatars.querySelectorAll('.option-item').forEach(function (x) { x.classList.remove('selected'); });
         d.classList.add('selected');
@@ -577,7 +720,7 @@ G.UI = (function () {
     for (let i = 0; i < badgeImgs.length; i++) {
       const d = document.createElement('div');
       d.className = 'option-item' + (i === 0 ? ' selected' : '');
-      d.innerHTML = '<img src="assets/img/' + badgeImgs[i] + '.svg" alt="badge">';
+      d.innerHTML = '<img src="' + (window.G_ASSETS && G_ASSETS[badgeImgs[i] + '.svg'] ? G_ASSETS[badgeImgs[i] + '.svg'] : 'assets/img/' + badgeImgs[i] + '.svg') + '" alt="badge">';
       d.onclick = function () {
         badges.querySelectorAll('.option-item').forEach(function (x) { x.classList.remove('selected'); });
         d.classList.add('selected');
@@ -668,6 +811,36 @@ G.UI = (function () {
         location.reload();
       }
     };
+    initSaveBackup();
+  }
+
+  function initSaveBackup() {
+    const input = U.el('save-file-input');
+    function doExport() {
+      if (!G.Save.get().profile) { notify('No expedition to save yet', 'info'); return; }
+      G.Save.exportFile();
+      G.Audio.play('success');
+      notify('Save file downloaded', 'good');
+    }
+    function doImport() {
+      if (G.Save.get().profile && !confirm('Loading a save file will replace your current progress. Continue?')) return;
+      input.value = '';
+      input.click();
+    }
+    input.onchange = function () {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      G.Save.importFile(file).then(function (st) {
+        G.Audio.play('success');
+        notify('Welcome back, ' + ((st.profile && st.profile.name) || 'Explorer') + '! Reloading expedition...', 'good');
+        setTimeout(function () { location.reload(); }, 900);
+      }, function (err) {
+        G.Audio.play('error');
+        notify(err.message, 'bad');
+      });
+    };
+    ['set-export', 'menu-export'].forEach(function (id) { if (U.el(id)) U.el(id).onclick = doExport; });
+    ['set-import', 'menu-import'].forEach(function (id) { if (U.el(id)) U.el(id).onclick = doImport; });
   }
 
   function applySettings() {
@@ -684,15 +857,17 @@ G.UI = (function () {
   }
 
   return {
-    notify: notify, discoveryToast: discoveryToast, koraSay: koraSay,
+    notify: notify, discoveryToast: discoveryToast, koraSay: koraSay, koraVoice: koraVoice,
     addKoraMessage: addKoraMessage,
     openKora: openKora, closeKora: closeKora, toggleKora: toggleKora,
     initKoraPanel: initKoraPanel,
     updateObjective: updateObjective, updateHUD: updateHUD, setInteract: setInteract,
+    setWaypoint: setWaypoint,
     openMap: openMap, closeMap: closeMap, toggleMap: toggleMap, drawMap: drawMap,
-    travelTo: travelTo,
+    travelTo: travelTo, travelToStation: travelToStation, travelToDeep: travelToDeep,
     openScanPanel: openScanPanel, updateScanPanel: updateScanPanel, closeScanPanel: closeScanPanel,
-    openNpc: openNpc, closeNpc: closeNpc,
+    openInfo: openInfo, scanFinished: scanFinished,
+    openNpc: openNpc, closeNpc: closeNpc, renderStation: renderStation,
     openStation: openStation, closeStation: closeStation,
     initProfileScreen: initProfileScreen, getProfileChoices: getProfileChoices,
     initSettings: initSettings, applySettings: applySettings,

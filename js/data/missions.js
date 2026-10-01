@@ -96,22 +96,88 @@ G.MISSIONS = [
       { id: 'refuel', text: 'Refuel at the station', type: 'refuel' },
       { id: 'talk_comms', text: 'Speak with the communications specialist', type: 'npc', target: 'npc_comms' }
     ],
-    koraComplete: "Tanks full, reports filed. The crew sends their regards and one slightly stale space biscuit. Time to go home, {name}.",
-    reward: { xp: 80, knowledge: ['communication.concept', 'fuel.concept'], badge: null },
+    koraComplete: "Tanks full, reports filed. The crew sends their regards and one slightly stale space biscuit. The inner worlds are complete, {name} — and Galileo Gate has just cleared you for the outer system.",
+    reward: { xp: 80, knowledge: ['communication.concept', 'fuel.concept'], badge: null, unlock: ['jupiter'] },
     questions: ['q_mars_4']
+  },
+  {
+    id: 'jupiter_expedition',
+    title: 'The Giant Worlds',
+    location: 'jupiter',
+    concept: 'Jupiter, gas giants and the Great Red Spot',
+    koraIntro: "Beyond the asteroid belt lies Jupiter, the largest planet — and a world you cannot land on. Scan it from orbit, dock at Galileo Gate, and try not to fall in. Falling in would be very final.",
+    steps: [
+      { id: 'travel_jupiter', text: 'Travel to Jupiter (Map with M)', type: 'travel_body', target: 'jupiter' },
+      { id: 'scan_jupiter', text: 'Scan Jupiter from orbit (press Q)', type: 'scan', target: 'jupiter' },
+      { id: 'dock_galileo', text: 'Dock at Galileo Gate (approach and press E)', type: 'dock', target: 'galileo_gate' },
+      { id: 'jupiter_quiz', text: 'Complete the gas giant knowledge check', type: 'quiz' }
+    ],
+    koraComplete: "Jupiter has no surface to stand on — only deepening layers of gas and a storm bigger than Earth. You scanned it without falling in. I am genuinely impressed, and I almost never say that.",
+    reward: { xp: 160, knowledge: ['jupiter.overview', 'gas.giant.concept'], badge: 'giant_worlds', unlock: ['saturn'] },
+    questions: ['q_jup_1', 'q_jup_2']
+  },
+  {
+    id: 'saturn_rings',
+    title: 'The Ringed World',
+    location: 'saturn',
+    concept: 'Saturn, its rings and its ocean moons',
+    koraIntro: "Saturn is waiting, {name}. Its rings are not solid — they are billions of drifting chunks of ice. Cassini Ring station is parked among them. Try not to collect any of the scenery.",
+    steps: [
+      { id: 'travel_saturn', text: 'Travel to Saturn (Map with M)', type: 'travel_body', target: 'saturn' },
+      { id: 'scan_saturn', text: 'Scan Saturn and its rings from orbit (press Q)', type: 'scan', target: 'saturn' },
+      { id: 'dock_cassini', text: 'Dock at Cassini Ring station', type: 'dock', target: 'cassini_ring' },
+      { id: 'saturn_quiz', text: 'Complete the ring world knowledge check', type: 'quiz' }
+    ],
+    koraComplete: "Rings of ice, a moon with lakes of methane, and geysers from an underground ocean. Saturn is doing a great deal of showing off. Well observed, {name}.",
+    reward: { xp: 160, knowledge: ['saturn.overview', 'saturn.moons'], badge: 'ring_walker', unlock: ['uranus', 'neptune'] },
+    questions: ['q_sat_3']
+  },
+  {
+    id: 'ice_giants',
+    title: 'The Cold Edge',
+    location: 'neptune',
+    concept: 'Uranus, Neptune and the ice giants',
+    koraIntro: "The ice giants are next: Uranus, which rolls on its side, and Neptune, where the fastest winds in the Solar System scream past two thousand kilometres an hour. Dress warm. Metaphorically. You are in a spaceship.",
+    steps: [
+      { id: 'travel_uranus', text: 'Travel to Uranus (Map with M)', type: 'travel_body', target: 'uranus' },
+      { id: 'scan_uranus', text: 'Scan Uranus from orbit (press Q)', type: 'scan', target: 'uranus' },
+      { id: 'travel_neptune', text: 'Travel to Neptune (Map with M)', type: 'travel_body', target: 'neptune' },
+      { id: 'scan_neptune', text: 'Scan Neptune from orbit (press Q)', type: 'scan', target: 'neptune' },
+      { id: 'dock_odyssey', text: 'Dock at Odyssey Post, the farthest outpost', type: 'dock', target: 'odyssey_post' },
+      { id: 'ice_quiz', text: 'Complete the ice giant knowledge check', type: 'quiz' }
+    ],
+    koraComplete: "You have now visited the coldest worlds we know. Uranus tips over; Neptune howls. Both are made of ices, not gas. You are officially an outer-system explorer.",
+    reward: { xp: 180, knowledge: ['uranus.overview', 'neptune.overview'], badge: 'ice_explorer', unlock: ['pluto', 'ceres'] },
+    questions: ['q_uran_1', 'q_nep_1']
+  },
+  {
+    id: 'beyond_map',
+    title: 'Beyond the Map',
+    location: 'pluto',
+    concept: 'Pluto, Ceres and the Kuiper Belt',
+    koraIntro: "One last journey, {name}. Pluto waits in the Kuiper Belt, and on the way back we will visit Ceres in the asteroid belt. These are dwarf planets — small worlds that never finished growing up. Much like some explorers I know.",
+    steps: [
+      { id: 'travel_pluto', text: 'Travel to Pluto in the Kuiper Belt (Map with M)', type: 'travel_body', target: 'pluto' },
+      { id: 'scan_pluto', text: 'Scan Pluto from orbit (press Q)', type: 'scan', target: 'pluto' },
+      { id: 'travel_ceres', text: 'Travel to Ceres in the asteroid belt (Map with M)', type: 'travel_body', target: 'ceres' },
+      { id: 'scan_ceres', text: 'Scan Ceres from orbit (press Q)', type: 'scan', target: 'ceres' }
+    ],
+    koraComplete: "Pluto has mountains of water ice and a heart-shaped plain. Ceres holds more fresh water than Earth. The small worlds are full of surprises — as are you.",
+    reward: { xp: 200, knowledge: ['pluto.dwarf', 'kuiper.belt', 'ceres.overview', 'asteroid.overview', 'voyager.missions'], badge: 'kuiper_pioneer' },
+    questions: ['q_pluto_1', 'q_asteroid_1', 'q_comet_1']
   },
   {
     id: 'explorers_report',
     title: "The Explorer's Report",
     location: 'earth',
     concept: 'Presenting everything you learned',
-    koraIntro: "Home again. Mission Control has one final task: assemble your Explorer's Field Report from the evidence you gathered. Choose wisely — this is the story of your expedition.",
+    koraIntro: "Home again, {name}. You have crossed the entire Solar System. Mission Control has one final task: assemble your Explorer's Field Report from the evidence you gathered. Choose wisely — this is the story of your expedition.",
     steps: [
       { id: 'travel_earth', text: 'Return to Earth orbit (Map with M)', type: 'travel_body', target: 'earth' },
       { id: 'report', text: 'Assemble your Field Report at Mission Control', type: 'report' }
     ],
-    koraComplete: "Mission complete. You started by asking where the Moon was. You ended by explaining why it has craters. Acceptable progress.",
-    reward: { xp: 200, knowledge: [], badge: 'solar_system_explorer' },
+    koraComplete: "Mission complete. You started by asking where the Moon was. You ended by explaining the storms of Jupiter and the ice of Neptune. Acceptable progress — for a human.",
+    reward: { xp: 250, knowledge: ['deep.space', 'light.year'], badge: 'grand_tour' },
     questions: []
   }
 ];

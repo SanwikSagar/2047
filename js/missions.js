@@ -57,6 +57,20 @@ G.Missions = (function () {
       if (m.reward.badge) {
         setTimeout(function () { awardBadgeWithToast(m.reward.badge); }, 1500);
       }
+      if (m.reward.unlock) {
+        if (G.Save.unlock(m.reward.unlock)) {
+          const names = m.reward.unlock.map(function (id) {
+            if (G.PLANETS[id]) return G.PLANETS[id].name;
+            if (G.STATIONS[id]) return G.STATIONS[id].name;
+            return id;
+          });
+          setTimeout(function () {
+            G.UI.discoveryToast('New Destination Unlocked', names.join(' \u2022 '));
+            G.UI.koraSay('Navigation updated. New destination available: ' + names.join(', ') + '. Open your map with M.');
+            G.Audio.play('badge');
+          }, 2200);
+        }
+      }
       if (m.reward.knowledge) {
         for (let i = 0; i < m.reward.knowledge.length; i++) {
           G.Save.unlockKnowledge(m.reward.knowledge[i], 'scanned');

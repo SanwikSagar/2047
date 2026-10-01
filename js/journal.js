@@ -6,6 +6,7 @@ G.Journal = (function () {
 
   const TABS = [
     { id: 'planets', name: 'Planets' },
+    { id: 'codex', name: 'Live Codex' },
     { id: 'missions', name: 'Missions' },
     { id: 'science', name: 'Science' },
     { id: 'history', name: 'Missions History' },
@@ -39,7 +40,21 @@ G.Journal = (function () {
         const known = Object.keys(st.knowledge).some(function (k) { return k.indexOf(p.id + '.') === 0; });
         html += '<div class="journal-entry"><h4>' + p.name + '</h4>';
         html += '<div class="je-summary">' + p.desc + '</div>';
-        html += '<div class="je-level">' + (known ? 'Scanned' : 'Unvisited') + '</div>';
+        html += '<div class="je-level">' + (known ? 'Scanned' : (st.visited.indexOf(p.id) >= 0 ? 'Visited' : 'Unvisited')) + '</div>';
+        html += '</div>';
+      }
+    } else if (activeTab === 'codex') {
+      const list = (st.codex || []).slice().reverse();
+      if (!list.length) html = '<div class="journal-empty">No live entries yet. Fly near planets, moons and asteroids, or scan them, and KORA will download real data from Wikipedia.</div>';
+      const E = G.Codex.esc;
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        html += '<div class="journal-entry" style="animation-delay:' + Math.min(i, 12) * 0.04 + 's">';
+        if (c.thumb) html += '<img class="je-thumb" src="' + E(c.thumb) + '" alt="">';
+        html += '<span class="je-level">live</span><h4>' + E(c.title) + '</h4>';
+        if (c.description) html += '<div class="je-sources" style="margin:0 0 6px">' + E(c.description) + '</div>';
+        html += '<div class="je-summary">' + E(c.extract) + '</div>';
+        if (c.url) html += '<div class="je-sources">Source: <a href="' + E(c.url) + '" target="_blank" rel="noopener noreferrer">Wikipedia</a></div>';
         html += '</div>';
       }
     } else if (activeTab === 'missions') {
@@ -95,6 +110,8 @@ G.Journal = (function () {
 
     if (activeTab === 'science') {
       U.el('journal-progress').textContent = count + ' / ' + total + ' topics';
+    } else if (activeTab === 'codex') {
+      U.el('journal-progress').textContent = (st.codex || []).length + ' live entries';
     } else {
       U.el('journal-progress').textContent = st.completedMissions.length + ' / ' + G.MISSIONS.length + ' missions';
     }

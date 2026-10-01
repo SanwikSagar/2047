@@ -24,6 +24,9 @@ G.Save = (function () {
       knowledge: {},
       badges: [],
       visited: [],
+      unlocked: ['earth', 'moon', 'mars'],
+      scannedPois: {},
+      worldPos: null,
       questionsAsked: 0,
       quizStats: {},
       upgrades: { scanner: 0, storage: 0, solar: 0, comms: 0 },
@@ -61,6 +64,61 @@ G.Save = (function () {
   }
 
   function get() { return state; }
+
+  function exportFile() {
+    save();
+    const payload = { game: 'orbita2047', version: 1, exportedAt: new Date().toISOString(), data: state };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const name = ((state.profile && state.profile.name) || 'explorer').replace(/[^a-z0-9_-]+/gi, '_').slice(0, 24);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '2047-save-' + name + '-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  // Only copy known fields with the expected types so a hand-edited file can't inject odd data.
+  function sanitize(d) {
+    const base = defaultState();
+    const out = defaultState();
+    for (const k in base) {
+      if (!(k in d)) continue;
+      const v = d[k], ref = base[k];
+      if (ref === null) { if (v === null || typeof v === 'object') out[k] = v; }
+      else if (Array.isArray(ref)) { if (Array.isArray(v)) out[k] = v; }
+      else if (typeof ref === typeof v) out[k] = v;
+    }
+    if (Array.isArray(d.codex)) out.codex = d.codex.slice(0, 500);
+    if (d.sectors && typeof d.sectors === 'object') out.sectors = d.sectors;
+    if (out.profile) {
+      out.profile = Object.assign({}, out.profile, { name: String(out.profile.name || 'Explorer').slice(0, 16) });
+    }
+    out.settings = Object.assign({}, DEFAULT_SETTINGS, typeof d.settings === 'object' ? d.settings : {});
+    out.fuel = Math.max(0, Math.min(100, Number(out.fuel) || 0));
+    out.power = Math.max(0, Math.min(100, Number(out.power) || 0));
+    return out;
+  }
+
+  function importFile(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file) return reject(new Error('No file selected.'));
+      if (file.size > 2 * 1024 * 1024) return reject(new Error('That file is too large to be a 2047 save.'));
+      const r = new FileReader();
+      r.onerror = function () { reject(new Error('Could not read the file.')); };
+      r.onload = function () {
+        let parsed;
+        try { parsed = JSON.parse(r.result); } catch (e) { return reject(new Error('This is not a valid save file.')); }
+        if (!parsed || parsed.game !== 'orbita2047' || typeof parsed.data !== 'object' || !parsed.data) {
+          return reject(new Error('This file is not a 2047 expedition save.'));
+        }
+        state = sanitize(parsed.data);
+        save();
+        resolve(state);
+      };
+      r.readAsText(file);
+    });
+  }
 
   function setProfile(p) { state.profile = p; save(); }
 
@@ -122,6 +180,42 @@ G.Save = (function () {
     }
   }
 
+  function isUnlocked(id) {
+    return state.unlocked && state.unlocked.indexOf(id) >= 0;
+  }
+
+  function unlock(ids) {
+    if (!state.unlocked) state.unlocked = ['earth', 'moon', 'mars'];
+    let added = false;
+    const list = Array.isArray(ids) ? ids : [ids];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] && state.unlocked.indexOf(list[i]) < 0) {
+        state.unlocked.push(list[i]);
+        added = true;
+      }
+    }
+    if (added) save();
+    return added;
+  }
+
+  function markPoiScanned(bodyId, poiId) {
+    if (!state.scannedPois) state.scannedPois = {};
+    state.scannedPois[bodyId + ':' + poiId] = true;
+    save();
+  }
+
+  function isPoiScanned(bodyId, poiId) {
+    return !!(state.scannedPois && state.scannedPois[bodyId + ':' + poiId]);
+  }
+
+  function setWorldPos(data) {
+    state.worldPos = data;
+  }
+
+  function getWorldPos() {
+    return state.worldPos;
+  }
+
   function completeMission(id) {
     if (state.completedMissions.indexOf(id) < 0) {
       state.completedMissions.push(id);
@@ -147,10 +241,14 @@ G.Save = (function () {
 
   return {
     load: load, save: save, wipe: wipe, get: get,
+    exportFile: exportFile, importFile: importFile,
     setProfile: setProfile, addXp: addXp, rank: rank,
     hasKnowledge: hasKnowledge, unlockKnowledge: unlockKnowledge, setKnowledgeLevel: setKnowledgeLevel,
     hasBadge: hasBadge, awardBadge: awardBadge,
     visit: visit, completeMission: completeMission,
+    isUnlocked: isUnlocked, unlock: unlock,
+    markPoiScanned: markPoiScanned, isPoiScanned: isPoiScanned,
+    setWorldPos: setWorldPos, getWorldPos: getWorldPos,
     recordQuestion: recordQuestion, recordQuiz: recordQuiz,
     setSettings: setSettings
   };

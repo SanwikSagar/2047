@@ -26,7 +26,7 @@ G.PLANETS = {
   },
   moon: {
     id: 'moon', name: 'The Moon', type: 'moon', radius: 4, color: '#b8bcc2',
-    parent: 'earth', distance: 26, angle: 1.2, speed: 0.02, seed: 204,
+    parent: 'earth', distance: 90, angle: 1.2, speed: 0.012, seed: 204,
     gravity: 'low', temp: 'hot days, cold nights', terrain: 'craters',
     desc: 'The Moon is Earth\'s natural satellite. It has no atmosphere, and its surface is covered in craters, mountains and dark flat plains called maria.'
   },
@@ -80,12 +80,24 @@ G.STATIONS = {
     desc: 'A bustling orbital junction where explorers refuel, upgrade and train.'
   },
   selene_junction: {
-    id: 'selene_junction', name: 'Selene Junction', parent: 'moon', distance: 14, angle: 2.4, speed: 0.03,
+    id: 'selene_junction', name: 'Selene Junction', parent: 'moon', distance: 34, angle: 2.4, speed: 0.03,
     desc: 'A lunar orbital station supporting Moon missions and Chandrayaan learning programmes.'
   },
   ares_relay: {
-    id: 'ares_relay', name: 'Ares Relay', parent: 'mars', distance: 26, angle: 5.0, speed: 0.012,
+    id: 'ares_relay', name: 'Ares Relay', parent: 'mars', distance: 48, angle: 5.0, speed: 0.012,
     desc: 'A Mars-orbit station coordinating rover specialists and communications.'
+  },
+  galileo_gate: {
+    id: 'galileo_gate', name: 'Galileo Gate', parent: 'jupiter', distance: 46, angle: 1.6, speed: 0.02,
+    desc: 'A deep-space gateway above the giant worlds, built to study storms that last for centuries.'
+  },
+  cassini_ring: {
+    id: 'cassini_ring', name: 'Cassini Ring', parent: 'saturn', distance: 44, angle: 3.3, speed: 0.018,
+    desc: 'A ring-side observatory parked among the ice, studying Saturn and its ocean moons.'
+  },
+  odyssey_post: {
+    id: 'odyssey_post', name: 'Odyssey Post', parent: 'neptune', distance: 30, angle: 2.2, speed: 0.016,
+    desc: 'The farthest outpost in the Solar System, the last stop before the cold edge.'
   }
 };
 
@@ -107,5 +119,10 @@ G.BADGES = [
   { id: 'planet_sorter', name: 'Planet Sorter', desc: 'Correctly classify all main planet types', icon: '&#127756;' },
   { id: 'question_machine', name: 'Question Machine', desc: 'Ask KORA ten questions', icon: '&#10067;' },
   { id: 'evidence_finder', name: 'Evidence Finder', desc: 'Complete an observation-based mission', icon: '&#128269;' },
-  { id: 'solar_system_explorer', name: 'Solar System Explorer', desc: 'Visit every core destination', icon: '&#127756;' }
+  { id: 'solar_system_explorer', name: 'Solar System Explorer', desc: 'Visit every core destination', icon: '&#127756;' },
+  { id: 'giant_worlds', name: 'Giant Worlds', desc: 'Explore the gas giant Jupiter', icon: '&#127756;' },
+  { id: 'ring_walker', name: 'Ring Walker', desc: 'Study Saturn and its rings', icon: '&#9711;' },
+  { id: 'ice_explorer', name: 'Ice Explorer', desc: 'Reach the ice giants Uranus and Neptune', icon: '&#10052;' },
+  { id: 'kuiper_pioneer', name: 'Kuiper Pioneer', desc: 'Journey to Pluto and the Kuiper Belt', icon: '&#9732;' },
+  { id: 'grand_tour', name: 'Grand Tour', desc: 'Explore every world in the Solar System', icon: '&#127775;' }
 ];
