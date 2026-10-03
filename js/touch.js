@@ -87,10 +87,7 @@ G.Touch = (function () {
       try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) { }
     } else enterFullscreen(false);
   }
-  function syncFsIcon() {
-    const b = U.el('m-full');
-    if (b) b.querySelector('i').innerHTML = fsEl() ? '&#10005;' : '&#9974;';
-  }
+  function syncFsIcon() {}
   ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) { document.addEventListener(ev, syncFsIcon); });
   const goFullscreen = function () { enterFullscreen(true); };
 
@@ -106,7 +103,6 @@ G.Touch = (function () {
     hold('m-left', 'a');
     hold('m-right', 'd');
     hold('m-rev', 's');
-    tap('m-full', toggleFullscreen);
     tap('m-scan', function () { G.Game.doScan(); });
     tap('m-act', function () { G.Game.doInteract(); });
     tap('m-ship', function () { G.Game.doRoverAction(); });
@@ -126,5 +122,5 @@ G.Touch = (function () {
     }
   }
 
-  return { init: init, enabled: function () { return enabled; } };
+  return { init: init, enabled: function () { return enabled; }, fullscreen: function () { if (enabled) enterFullscreen(true); } };
 })();

@@ -113,16 +113,16 @@ G.RANKS = [
 
 G.BADGES = [
   { id: 'first_scan', name: 'First Scan', desc: 'Scan your first object', icon: '&#8982;' },
-  { id: 'moon_walker', name: 'Moon Walker', desc: 'Complete your first lunar expedition', icon: '&#127769;' },
+  { id: 'moon_walker', name: 'Moon Walker', desc: 'Complete your first lunar expedition', icon: G.Icon('moon') },
   { id: 'rover_driver', name: 'Rover Driver', desc: 'Complete a rover mission', icon: '&#9673;' },
-  { id: 'mission_historian', name: 'Mission Historian', desc: 'Unlock five historical mission entries', icon: '&#128218;' },
-  { id: 'planet_sorter', name: 'Planet Sorter', desc: 'Correctly classify all main planet types', icon: '&#127756;' },
-  { id: 'question_machine', name: 'Question Machine', desc: 'Ask KORA ten questions', icon: '&#10067;' },
-  { id: 'evidence_finder', name: 'Evidence Finder', desc: 'Complete an observation-based mission', icon: '&#128269;' },
-  { id: 'solar_system_explorer', name: 'Solar System Explorer', desc: 'Visit every core destination', icon: '&#127756;' },
-  { id: 'giant_worlds', name: 'Giant Worlds', desc: 'Explore the gas giant Jupiter', icon: '&#127756;' },
-  { id: 'ring_walker', name: 'Ring Walker', desc: 'Study Saturn and its rings', icon: '&#9711;' },
-  { id: 'ice_explorer', name: 'Ice Explorer', desc: 'Reach the ice giants Uranus and Neptune', icon: '&#10052;' },
-  { id: 'kuiper_pioneer', name: 'Kuiper Pioneer', desc: 'Journey to Pluto and the Kuiper Belt', icon: '&#9732;' },
-  { id: 'grand_tour', name: 'Grand Tour', desc: 'Explore every world in the Solar System', icon: '&#127775;' }
+  { id: 'mission_historian', name: 'Mission Historian', desc: 'Unlock five historical mission entries', icon: G.Icon('book') },
+  { id: 'planet_sorter', name: 'Planet Sorter', desc: 'Correctly classify all main planet types', icon: G.Icon('planet') },
+  { id: 'question_machine', name: 'Question Machine', desc: 'Ask KORA ten questions', icon: G.Icon('question') },
+  { id: 'evidence_finder', name: 'Evidence Finder', desc: 'Complete an observation-based mission', icon: G.Icon('search') },
+  { id: 'solar_system_explorer', name: 'Solar System Explorer', desc: 'Visit every core destination', icon: G.Icon('globe') },
+  { id: 'giant_worlds', name: 'Giant Worlds', desc: 'Explore the gas giant Jupiter', icon: G.Icon('planet') },
+  { id: 'ring_walker', name: 'Ring Walker', desc: 'Study Saturn and its rings', icon: G.Icon('ring') },
+  { id: 'ice_explorer', name: 'Ice Explorer', desc: 'Reach the ice giants Uranus and Neptune', icon: G.Icon('snow') },
+  { id: 'kuiper_pioneer', name: 'Kuiper Pioneer', desc: 'Journey to Pluto and the Kuiper Belt', icon: G.Icon('comet') },
+  { id: 'grand_tour', name: 'Grand Tour', desc: 'Explore every world in the Solar System', icon: G.Icon('star') }
 ];

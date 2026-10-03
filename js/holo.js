@@ -19,7 +19,7 @@ G.Holo = (function () {
     mini = U.el('holo-mini');
     if (!canvas) return;
     const LOWP = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /[?&]touch=1/.test(location.search);
-    dpr = LOWP ? 0.65 : Math.min(window.devicePixelRatio || 1, 2);
+    dpr = LOWP ? Math.min(window.devicePixelRatio || 1, 1.5) : Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = 220 * dpr; canvas.height = 220 * dpr;
     ctx = canvas.getContext('2d');
     if (mini) mctx = mini.getContext('2d');

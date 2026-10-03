@@ -5,7 +5,7 @@ G.NPCS = {
     id: 'npc_geologist',
     name: 'Dr. Amara Osei',
     role: 'Lunar Geologist',
-    icon: '&#128104;&#8205;&#128300;',
+    icon: G.Icon('person'),
     location: 'selene_junction',
     greeting: "Welcome to Selene Junction, explorer! I study Moon rocks for a living. It is like being a detective, except the clues are billions of years old.",
     dialogue: [
@@ -35,7 +35,7 @@ G.NPCS = {
     id: 'npc_comms',
     name: 'Ravi Chandran',
     role: 'Communications Specialist',
-    icon: '&#128104;&#8205;&#128187;',
+    icon: G.Icon('person'),
     location: 'ares_relay',
     greeting: "Explorer! Perfect timing. I was just aligning the big dish antenna. Do you know how we talk to spacecraft across all that distance? It is all about radio signals and patience.",
     dialogue: [

@@ -323,20 +323,34 @@ G.Audio = (function () {
   const MALE = /\b(male|david|mark|guy|george|james|ryan|daniel|alex|fred|aaron|arthur|rishi|thomas|oliver|gordon|lee|reed|eddy|ralph|albert|bruce|junior|rocko|christopher|eric|roger|steffan|brian|liam|william|andrew|brandon|davis|tony|jason|ravi|prabhat|hemant|madhur)\b/i;
   const FEMALE = /\b(female|zira|hazel|susan|samantha|karen|moira|tessa|veena|victoria|fiona|serena|kate|catherine|libby|sonia|jenny|aria|emma|michelle|heera|neerja|swara|kalpana|nicky|allison|ava|joanna|kendra|salli|ivy|kimberly|martha|shelley|sandy|flo|grandma)\b/i;
   // Android/Chrome-OS Google voice codes that are male.
-  const ANDROID_MALE = /(en-us-x-(iol|iom|tpd))|(en-gb-x-(gbd|rjs))|(en-in-x-(ene|end))|(en-au-x-(aub|aud))/i;
-  let voice = null, voicePitch = 0.9;
+  const ANDROID_MALE = /(en-us-x-(iol|iom|tpd))|(en-gb-x-(gbd|rjs))|(en-in-x-(ene|end))|(en-au-x-(aub|aud))|#male_\d/i;
+  // Same persona across devices: best-known British/US male voices first.
+  const PREFERRED = [/google uk english male/i, /microsoft (guy|ryan|george|mark|david)/i, /\bdaniel\b/i, /\barthur\b/i, /\balex\b/i, /\baaron\b/i, /en-gb-x-(gbd|rjs)/i, /en-us-x-(iom|iol|tpd)/i];
+  let voice = null, voicePitch = 0.9, voiceChoice = null;
+  try { voiceChoice = localStorage.getItem('orbita_voice') || null; } catch (e) { }
+  const voiceListeners = [];
+
+  function englishVoices() {
+    return window.speechSynthesis ? window.speechSynthesis.getVoices().filter(function (v) { return /^en/i.test(v.lang); }) : [];
+  }
 
   function pickVoice() {
     if (!window.speechSynthesis) return;
-    const vs = window.speechSynthesis.getVoices().filter(function (v) { return /^en/i.test(v.lang); });
+    const vs = englishVoices();
     if (!vs.length) return;
+    if (voiceChoice) {
+      const chosen = vs.find(function (v) { return v.name === voiceChoice; });
+      if (chosen) { voice = chosen; voicePitch = 0.95; voiceListeners.forEach(function (f) { f(); }); return; }
+    }
     const score = function (v) {
       const n = v.name + ' ' + (v.voiceURI || '');
+      const female = FEMALE.test(n) || /female/i.test(n);
       let s = 0;
-      if (ANDROID_MALE.test(n)) s += 50;
-      if (MALE.test(n)) s += 40;
-      if (FEMALE.test(n)) s -= 60;
-      if (/en[-_](gb|in)/i.test(v.lang)) s += 4;
+      if (!female && (ANDROID_MALE.test(n) || MALE.test(n) || /(^|[#\s_-])male/i.test(n))) s += 40;
+      if (ANDROID_MALE.test(n) && !female) s += 10;
+      if (female) s -= 60;
+      for (let i = 0; i < PREFERRED.length; i++) if (PREFERRED[i].test(n)) { s += 40 - i * 3; break; }
+      if (/en[-_]gb/i.test(v.lang)) s += 4; else if (/en[-_]in/i.test(v.lang)) s += 2;
       if (/natural|neural|online|enhanced|premium/i.test(n)) s += 6;
       if (v.localService) s += 2;
       return s;
@@ -345,6 +359,7 @@ G.Audio = (function () {
     voice = vs[0];
     // No male voice installed: deepen the default one.
     voicePitch = score(voice) >= 30 ? 0.92 : 0.62;
+    voiceListeners.forEach(function (f) { f(); });
   }
   if (window.speechSynthesis) {
     pickVoice();
@@ -478,6 +493,14 @@ G.Audio = (function () {
     speak: speak,
     stopSpeak: stopSpeak,
     voiceName: function () { return voice ? voice.name : 'default'; },
+    voices: function () { return englishVoices().map(function (v) { return v.name; }); },
+    chosenVoice: function () { return voiceChoice; },
+    setVoice: function (name) {
+      voiceChoice = name || null;
+      try { if (name) localStorage.setItem('orbita_voice', name); else localStorage.removeItem('orbita_voice'); } catch (e) { }
+      pickVoice();
+    },
+    onVoices: function (fn) { voiceListeners.push(fn); },
     state: function () { return ctx ? ctx.state : 'none'; },
     test: test,
     unlock: unlockAll

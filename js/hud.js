@@ -66,7 +66,6 @@ G.HUD = (function () {
   }
 
   function place(id, cls, pos, name, radius, alwaysShow, data) {
-    if (!alwaysShow && !G.World.terrainBody && occluded(pos, id)) return;
     const cam = G.World.camera;
     const W = window.innerWidth, H = window.innerHeight;
     const d = cam.position.distanceTo(pos);
@@ -77,11 +76,14 @@ G.HUD = (function () {
     let x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
     const on = ahead && x > 30 && x < W - 30 && y > 60 && y < H - 190;
     if (!on && !alwaysShow) return;
+    // Occlusion (a loop over every body) only runs for markers that are actually inside the view frustum.
+    if (on && !alwaysShow && !G.World.terrainBody && occluded(pos, id)) return;
     const m = marker(id, cls + (on ? '' : ' offscreen'));
     m._data = data || null;
-    m.classList.toggle('tappable', !!data);
-    m._name.textContent = name;
-    m._dist.textContent = fmtDist(d);
+    if (m._tap !== !!data) { m._tap = !!data; m.classList.toggle('tappable', !!data); }
+    if (m._nm !== name) { m._nm = name; m._name.textContent = name; }
+    const dt = fmtDist(d);
+    if (m._ds !== dt) { m._ds = dt; m._dist.textContent = dt; }
     if (on) {
       const s = U.clamp((radius / Math.max(d, 0.1)) * H * 1.15, 24, 160);
       m.style.setProperty('--s', s + 'px');
@@ -404,6 +406,7 @@ G.HUD = (function () {
       started = true;
       prompt.remove();
       G.Audio.unlock();
+      if (G.Touch && G.Touch.fullscreen) G.Touch.fullscreen();
       G.Audio.play('powerUp');
       setTimeout(run, 650);
     };

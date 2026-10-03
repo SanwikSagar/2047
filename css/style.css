@@ -1766,6 +1766,20 @@ body.greenman #game-container { filter: hue-rotate(-55deg) saturate(1.25); trans
 .menu-btn .btn-glow { z-index: 0; position: absolute; }
 #radar-corner .rc-label { white-space: nowrap; }
 
+/* ---------- SVG icon set (replaces emoji) ---------- */
+.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ic .fillc { fill: currentColor; fill-opacity: 0.3; }
+.ic .strokew { stroke: #fff; stroke-width: 1.2; }
+.panel-header-icon .ic { width: 26px; height: 26px; }
+.badge-item .badge-icon .ic { width: 26px; height: 26px; }
+#touch-top button i .ic { width: 20px; height: 20px; }
+#notice i .ic { width: 1.1em; height: 1.1em; }
+.crew-wave .ic, .ga-wave .ic { width: 28px; height: 28px; color: #ffd27a; filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.7)); }
+.ga-badge .ic { width: 56px; height: 56px; color: #ffd23c; }
+.gb-medal .ic { width: 1em; height: 1em; stroke-width: 1.4; }
+.fun-head .ic, .kx-btn .ic, #race-hud b .ic, .fo-title .ic { width: 1.1em; height: 1.1em; }
+.gd-next .ic { width: 1.1em; height: 1.1em; }
+
 /* ---------- scan / info panel v2 ---------- */
 #scan-panel .kx-hero { position: relative; display: flex; gap: 14px; align-items: center; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line-soft); background: linear-gradient(135deg, rgba(20, 60, 100, 0.55), rgba(4, 12, 24, 0.7)); clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
 #scan-panel .kx-img-wrap { display: flex; align-items: center; justify-content: center; position: relative; width: 92px; height: 92px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--cyan); box-shadow: 0 0 18px rgba(56, 225, 255, 0.3); background: radial-gradient(circle, rgba(56, 225, 255, 0.2), rgba(2, 8, 18, 0.9)); clip-path: none; }

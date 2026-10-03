@@ -47,18 +47,18 @@ G.Crew = (function () {
   const RARITY = ['common', 'rare', 'epic'];
 
   G.BADGES.push(
-    { id: 'card_collector', name: 'Card Collector', desc: 'Collect 5 knowledge cards from astronauts', icon: '&#127183;' },
-    { id: 'card_master', name: 'Card Master', desc: 'Collect 20 knowledge cards', icon: '&#127942;' },
-    { id: 'space_racer', name: 'Space Racer', desc: 'Finish a Space Race through every gate', icon: '&#127937;' },
+    { id: 'card_collector', name: 'Card Collector', desc: 'Collect 5 knowledge cards from astronauts', icon: G.Icon('card') },
+    { id: 'card_master', name: 'Card Master', desc: 'Collect 20 knowledge cards', icon: G.Icon('trophy') },
+    { id: 'space_racer', name: 'Space Racer', desc: 'Finish a Space Race through every gate', icon: G.Icon('flag') },
     { id: 'star_catcher', name: 'Star Catcher', desc: 'Score 40 or more in Star Catcher', icon: '&#11088;' },
-    { id: 'egg_greenman', name: 'GreenMan Found', desc: 'Found the secret explorer hiding on Mars', icon: '&#128125;', secret: true },
-    { id: 'egg_code', name: 'Secret Code', desc: "Typed the creator's secret code", icon: '&#128273;', secret: true },
-    { id: 'egg_logo', name: 'Hologram Hacker', desc: 'Found the hidden hologram message', icon: '&#128302;', secret: true },
-    { id: 'egg_kora', name: "KORA's Secret", desc: 'Asked KORA about her creator', icon: '&#129302;', secret: true },
-    { id: 'egg_catch', name: 'Green Bonus', desc: 'Caught GreenMan in Star Catcher', icon: '&#127808;', secret: true }
+    { id: 'egg_greenman', name: 'GreenMan Found', desc: 'Found the secret explorer hiding on Mars', icon: G.Icon('alien'), secret: true },
+    { id: 'egg_code', name: 'Secret Code', desc: "Typed the creator's secret code", icon: G.Icon('key'), secret: true },
+    { id: 'egg_logo', name: 'Hologram Hacker', desc: 'Found the hidden hologram message', icon: G.Icon('crystal'), secret: true },
+    { id: 'egg_kora', name: "KORA's Secret", desc: 'Asked KORA about her creator', icon: G.Icon('robot'), secret: true },
+    { id: 'egg_catch', name: 'Green Bonus', desc: 'Caught GreenMan in Star Catcher', icon: G.Icon('clover'), secret: true }
   );
   Object.keys(G.STATIONS).forEach(function (sid) {
-    G.BADGES.push({ id: 'cert_' + sid, name: G.STATIONS[sid].name + ' Certified', desc: 'Pass the operator exam at ' + G.STATIONS[sid].name, icon: '&#127894;' });
+    G.BADGES.push({ id: 'cert_' + sid, name: G.STATIONS[sid].name + ' Certified', desc: 'Pass the operator exam at ' + G.STATIONS[sid].name, icon: G.Icon('ribbon') });
   });
 
   let crew = [], surfGroup = null, spaceGroup = null, t = 0, introSpace = false;
@@ -335,6 +335,8 @@ G.Crew = (function () {
       // Skip animating and drawing explorers that are far away.
       o.visible = d < (landed ? 520 : 700);
       if (!o.visible) continue;
+      // Astronauts outside the camera frustum need no animation; THREE also skips drawing them.
+      if (!G.World.inView(o.position, 8)) continue;
       const done = !!met[c.id];
       ud.card.visible = !done;
       ud.beam.visible = !done && !c.secret;
@@ -466,7 +468,7 @@ G.Crew = (function () {
       body.innerHTML = '<div class="crew-hero secret">' + portrait(c) + '</div><div class="npc-dialogue"><span class="npc-name-tag">' + esc(c.name) + ':</span> ' +
         (k.met[c.id] ? 'Keep exploring, ' + esc(name) + '! There are more secrets hidden across 2047. Have you tried typing my name, or asking KORA who made her?'
           : 'Psst! You found my secret hideout on Mars! I am GreenMan \u2014 in real life I am Sanwik Sagar, the creator of this whole galaxy. Here is my rarest card, just for you!') + '</div>' +
-        '<div class="kx-actions">' + (k.met[c.id] ? '' : '<button class="kx-btn primary" id="crew-card">&#128125; Receive secret card</button>') + '<button class="kx-btn" id="crew-bye">See you, GreenMan!</button></div>';
+        '<div class="kx-actions">' + (k.met[c.id] ? '' : '<button class="kx-btn primary" id="crew-card">' + G.Icon('alien') + ' Receive secret card</button>') + '<button class="kx-btn" id="crew-bye">See you, GreenMan!</button></div>';
       if (!k.met[c.id]) U.el('crew-card').onclick = function () { U.hide('crew-panel'); giveSecret(c); };
       U.el('crew-bye').onclick = function () { G.Audio.play('click'); U.hide('crew-panel'); };
       return;
@@ -479,8 +481,8 @@ G.Crew = (function () {
         '<div class="kx-actions"><button class="kx-btn" id="crew-bye">See you around!</button></div>';
     } else {
       const line = HELLO[hash(c.id) % HELLO.length].replace('{p}', c.place);
-      body.innerHTML = '<div class="crew-hero">' + portrait(c) + '<span class="crew-wave">&#128075;</span></div><div class="npc-dialogue"><span class="npc-name-tag">' + esc(c.name) + ':</span> ' + esc(line) + '</div>' +
-        '<div class="kx-actions"><button class="kx-btn primary" id="crew-card">&#127183; Receive knowledge card</button><button class="kx-btn" id="crew-bye">Maybe later</button></div>';
+      body.innerHTML = '<div class="crew-hero">' + portrait(c) + '<span class="crew-wave">' + G.Icon('wave') + '</span></div><div class="npc-dialogue"><span class="npc-name-tag">' + esc(c.name) + ':</span> ' + esc(line) + '</div>' +
+        '<div class="kx-actions"><button class="kx-btn primary" id="crew-card">' + G.Icon('card') + ' Receive knowledge card</button><button class="kx-btn" id="crew-bye">Maybe later</button></div>';
       U.el('crew-card').onclick = function () { U.hide('crew-panel'); giveCard(c); };
     }
     U.el('crew-bye').onclick = function () { G.Audio.play('click'); U.hide('crew-panel'); };
@@ -682,7 +684,7 @@ G.Crew = (function () {
           '<div class="op-stats"><span>' + (ex.passed ? '&#10003; CERTIFIED' : 'NOT CERTIFIED') + '</span><span>BEST ' + (ex.best || 0) + '/3</span><span>' + known + ' TOPICS</span></div>' +
           '<button id="ss-exam" class="op-btn"' + (known < 3 ? ' disabled' : '') + '>' + (known < 3 ? 'Need 3 topics' : ex.passed ? 'Retake exam' : 'Start exam') + '</button>' +
         '</div></div>' +
-      '<div class="fun-head">&#127922; FUN ZONE <span><b>' + k.passes + '</b> Fun Pass' + (k.passes === 1 ? '' : 'es') + '</span></div>' +
+      '<div class="fun-head">' + G.Icon('dice') + ' FUN ZONE <span><b>' + k.passes + '</b> Fun Pass' + (k.passes === 1 ? '' : 'es') + '</span></div>' +
       '<div class="fun-grid">' +
         '<button data-fun="race" class="fun-race"' + (k.passes ? '' : ' disabled') + '><span class="fun-art"><i></i><i></i><i></i></span><b>Space Race</b><span>10 gates \u00b7 win a medal' + (k.raceBest ? ' \u00b7 best ' + k.raceBest.toFixed(1) + 's' : '') + '</span></button>' +
         '<button data-fun="catch" class="fun-catch"' + (k.passes ? '' : ' disabled') + '><span class="fun-art"><i>&#9733;</i><i>&#9733;</i><i>&#9733;</i></span><b>Star Catcher</b><span>Combos \u00b7 power-ups' + (k.catchBest ? ' \u00b7 best ' + k.catchBest : '') + '</span></button>' +

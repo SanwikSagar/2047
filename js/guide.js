@@ -34,11 +34,11 @@ window.G = window.G || {};
       { kicker: 'STEP 4 \u00b7 MEET', title: 'Meet astronauts, collect cards',
         text: 'Follow the amber light beams to find astronauts. ' + (tc ? 'Tap TALK' : 'Press E') + ' near them to receive knowledge cards with real facts and famous space quotes.',
         chips: ['Amber beam', tc ? 'TALK' : 'E', 'Cards in LOG'],
-        art: '<div class="ga ga-astro"><div class="ga-beamup"></div><div class="ga-face">' + astro + '<span class="ga-wave">&#128075;</span></div><div class="ga-card"><div class="f">&#10022;</div><div class="b">2047</div></div></div>' },
+        art: '<div class="ga ga-astro"><div class="ga-beamup"></div><div class="ga-face">' + astro + '<span class="ga-wave">' + G.Icon('wave') + '</span></div><div class="ga-card"><div class="f">&#10022;</div><div class="b">2047</div></div></div>' },
       { kicker: 'STEP 5 \u00b7 EXAM', title: 'Dock and pass exams',
         text: 'Dock at a station and talk to the Operator. Answer 3 questions about your cards to earn a station badge and a Fun Pass.',
         chips: [tc ? 'GO = dock' : 'E = dock', '3 questions', 'Badge', 'Fun Pass'],
-        art: '<div class="ga ga-exam"><div class="ga-op">' + op + '</div><div class="ga-q q1">?</div><div class="ga-q q2">&#10003;</div><div class="ga-q q3">&#10003;</div><div class="ga-badge">&#127894;</div></div>' },
+        art: '<div class="ga ga-exam"><div class="ga-op">' + op + '</div><div class="ga-q q1">?</div><div class="ga-q q2">&#10003;</div><div class="ga-q q3">&#10003;</div><div class="ga-badge">' + G.Icon('ribbon') + '</div></div>' },
       { kicker: 'STEP 6 \u00b7 PLAY', title: 'Spend Fun Passes',
         text: 'Use Fun Passes in a station Fun Zone. Race through 10 gates for a medal, or catch falling stars with combos and power-ups.',
         chips: ['Space Race', 'Star Catcher', 'Medals', 'Combos'],
@@ -100,7 +100,7 @@ window.G = window.G || {};
     el.querySelector('.gd-dots').innerHTML = gList.map(function (_, i) { return '<i class="' + (i === gIdx ? 'on' : '') + '" data-i="' + i + '"></i>'; }).join('');
     el.querySelectorAll('.gd-dots i').forEach(function (d) { d.onclick = function () { go(+d.getAttribute('data-i')); }; });
     el.querySelector('.gd-prev').disabled = gIdx === 0;
-    el.querySelector('.gd-next').innerHTML = gIdx === gList.length - 1 ? "Let's explore! &#128640;" : 'Next &rsaquo;';
+    el.querySelector('.gd-next').innerHTML = gIdx === gList.length - 1 ? "Let's explore! " + G.Icon('rocket') : 'Next &rsaquo;';
   }
   function closeGuide() {
     const el = U.el('guide');

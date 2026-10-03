@@ -326,7 +326,12 @@ G.SurfaceMissions = (function () {
 
   function update(dt) {
     if (!group) return;
-    const t = G.World.time;
+    const t = G.World.time, rp = G.Rover.position();
+    G.World.pois.forEach(function (p) {
+      if (!p.hardware) return;
+      // Distant hardware is beyond the fog anyway; hide it to save draw calls.
+      p.obj.visible = p.obj.position.distanceTo(rp) < 520;
+    });
     G.World.pois.forEach(function (p) {
       if (!p.heli) return;
       p.heli.position.y = 1.2 + Math.sin(t * 1.3) * 0.5 + 0.5;

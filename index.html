@@ -10,7 +10,7 @@
 <title>2047: The Great Space Expedition</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap">
-<link rel="stylesheet" href="css/style.css?v=80">
+<link rel="stylesheet" href="css/style.css?v=81">
 </head>
 <body>
 <div id="game-container">
@@ -129,7 +129,7 @@
       </div>
 
       <div id="hud-interact" class="hidden"></div>
-      <div id="race-hud" class="hidden"><b>&#127937; SPACE RACE</b><span id="race-gate">GATE 1/10</span><span id="race-time">0.0s</span><button id="race-quit">QUIT</button></div>
+      <div id="race-hud" class="hidden"><b><i data-ic="flag"></i> SPACE RACE</b><span id="race-gate">GATE 1/10</span><span id="race-time">0.0s</span><button id="race-quit">QUIT</button></div>
 
       <div id="dashboard">
         <div class="mfd" id="mfd-left">
@@ -213,8 +213,7 @@
           <button id="m-jump" title="Jump drive (beyond Neptune)"><i>&#187;</i><b>JUMP</b></button>
           <button id="m-journal" title="Journal"><i>&#9636;</i><b>LOG</b></button>
           <button id="m-talk" title="Talk to KORA"><i>&#9672;</i><b>COMMS</b></button>
-          <button id="m-full" title="Fullscreen"><i>&#9974;</i></button>
-          <button id="m-settings" title="Settings"><i>&#9881;</i></button>
+          <button id="m-settings" title="Settings"><i data-ic="gear"></i></button>
         </div>
         <div id="radar-corner" title="Open map"><canvas width="200" height="200"></canvas><span class="rc-label">TAP FOR MAP</span></div>
         <div id="touch-hint">DRAG THE SCREEN TO LOOK &amp; STEER</div>
@@ -407,7 +406,7 @@
 
     <div id="quiz-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon">&#10067;</div>
+        <div class="panel-header-icon" data-ic="question"></div>
         <div>
           <div class="panel-title" id="quiz-title">Knowledge Check</div>
           <div class="panel-subtitle" id="quiz-subtitle"></div>
@@ -443,7 +442,7 @@
 
     <div id="crew-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon">&#129489;&#8205;&#128640;</div>
+        <div class="panel-header-icon" data-ic="astronaut"></div>
         <div>
           <div class="panel-title" id="crew-name">Astronaut</div>
           <div class="panel-subtitle" id="crew-role"></div>
@@ -455,7 +454,7 @@
 
     <div id="station-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon">&#9878;</div>
+        <div class="panel-header-icon" data-ic="station"></div>
         <div>
           <div class="panel-title" id="station-name">Station</div>
           <div class="panel-subtitle">Orbital Hub &bull; docked</div>
@@ -467,7 +466,7 @@
 
     <div id="settings-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon">&#9881;</div>
+        <div class="panel-header-icon" data-ic="gear"></div>
         <div>
           <div class="panel-title">Settings</div>
           <div class="panel-subtitle">Display &amp; audio preferences</div>
@@ -477,6 +476,7 @@
       <div class="settings-body">
         <div class="setting-row"><label>Explorer Guide</label><button class="toggle" id="set-guide">Open Tutorial</button></div>
         <div class="setting-row"><label>KORA Voice</label><button class="toggle" id="set-voice">On</button></div>
+        <div class="setting-row"><label>Voice Choice</label><select id="set-voicepick"></select></div>
         <div class="setting-row"><label>Speech Rate</label><input type="range" id="set-rate" min="0.6" max="1.4" step="0.1" value="1"><span id="set-rate-val">1.0</span></div>
         <div class="setting-row"><label>Music Volume</label><input type="range" id="set-music" min="0" max="1" step="0.1" value="0.5"><span id="set-music-val">50%</span></div>
         <div class="setting-row"><label>Effects Volume</label><input type="range" id="set-sfx" min="0" max="1" step="0.1" value="0.8"><span id="set-sfx-val">80%</span></div>
@@ -495,7 +495,7 @@
 
     <div id="howto-panel" class="side-panel hidden">
       <div class="panel-header">
-        <div class="panel-header-icon">&#10067;</div>
+        <div class="panel-header-icon" data-ic="question"></div>
         <div>
           <div class="panel-title">Flight Manual</div>
           <div class="panel-subtitle">Explorer training manual</div>
@@ -573,41 +573,42 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/utils.js?v=80"></script>
-<script src="js/data/planets.js?v=80"></script>
-<script src="js/data/knowledge.js?v=80"></script>
-<script src="js/data/questions.js?v=80"></script>
-<script src="js/data/missions.js?v=80"></script>
-<script src="js/data/koraLines.js?v=80"></script>
-<script src="js/data/npc.js?v=80"></script>
-<script src="js/data/terrains.js?v=80"></script>
-<script src="js/data/spacecraft.js?v=80"></script>
-<script src="js/data/deep.js?v=80"></script>
-<script src="js/audio.js?v=80"></script>
-<script src="js/voice.js?v=80"></script>
-<script src="js/save.js?v=80"></script>
-<script src="js/codex.js?v=80"></script>
-<script src="js/kora.js?v=80"></script>
-<script src="js/world.js?v=80"></script>
-<script src="js/sectors.js?v=80"></script>
-<script src="js/spacecraft.js?v=80"></script>
-<script src="js/deepspace.js?v=80"></script>
-<script src="js/ship.js?v=80"></script>
-<script src="js/rover.js?v=80"></script>
-<script src="js/scanner.js?v=80"></script>
-<script src="js/missions.js?v=80"></script>
-<script src="js/journal.js?v=80"></script>
-<script src="js/quiz.js?v=80"></script>
-<script src="js/holo.js?v=80"></script>
-<script src="js/hud.js?v=80"></script>
-<script src="js/starmap.js?v=80"></script>
-<script src="js/touch.js?v=80"></script>
-<script src="js/ui.js?v=80"></script>
-<script src="js/fx.js?v=80"></script>
-<script src="js/crew.js?v=80"></script>
-<script src="js/surfacemissions.js?v=80"></script>
-<script src="js/games.js?v=80"></script>
-<script src="js/guide.js?v=80"></script>
-<script src="js/main.js?v=80"></script>
+<script src="js/utils.js?v=81"></script>
+<script src="js/icons.js?v=81"></script>
+<script src="js/data/planets.js?v=81"></script>
+<script src="js/data/knowledge.js?v=81"></script>
+<script src="js/data/questions.js?v=81"></script>
+<script src="js/data/missions.js?v=81"></script>
+<script src="js/data/koraLines.js?v=81"></script>
+<script src="js/data/npc.js?v=81"></script>
+<script src="js/data/terrains.js?v=81"></script>
+<script src="js/data/spacecraft.js?v=81"></script>
+<script src="js/data/deep.js?v=81"></script>
+<script src="js/audio.js?v=81"></script>
+<script src="js/voice.js?v=81"></script>
+<script src="js/save.js?v=81"></script>
+<script src="js/codex.js?v=81"></script>
+<script src="js/kora.js?v=81"></script>
+<script src="js/world.js?v=81"></script>
+<script src="js/sectors.js?v=81"></script>
+<script src="js/spacecraft.js?v=81"></script>
+<script src="js/deepspace.js?v=81"></script>
+<script src="js/ship.js?v=81"></script>
+<script src="js/rover.js?v=81"></script>
+<script src="js/scanner.js?v=81"></script>
+<script src="js/missions.js?v=81"></script>
+<script src="js/journal.js?v=81"></script>
+<script src="js/quiz.js?v=81"></script>
+<script src="js/holo.js?v=81"></script>
+<script src="js/hud.js?v=81"></script>
+<script src="js/starmap.js?v=81"></script>
+<script src="js/touch.js?v=81"></script>
+<script src="js/ui.js?v=81"></script>
+<script src="js/fx.js?v=81"></script>
+<script src="js/crew.js?v=81"></script>
+<script src="js/surfacemissions.js?v=81"></script>
+<script src="js/games.js?v=81"></script>
+<script src="js/guide.js?v=81"></script>
+<script src="js/main.js?v=81"></script>
 </body>
 </html>

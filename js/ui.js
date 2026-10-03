@@ -7,7 +7,7 @@ G.UI = (function () {
   let currentStation = null;
   let currentNpc = null;
 
-  const NOTICE_ICON = { good: '\u2714', bad: '\u26A0', info: '\u25C8' };
+  const NOTICE_ICON = { good: G.Icon('check'), bad: G.Icon('warn'), info: G.Icon('info') };
   let noticeTimer = null, lastNotice = '', lastNoticeAt = 0;
   // One dedicated slot: new alerts replace the current one instead of stacking.
   function notify(text, type) {
@@ -25,7 +25,7 @@ G.UI = (function () {
       area.appendChild(n);
     }
     n.className = 'notification ' + type;
-    n.querySelector('i').textContent = NOTICE_ICON[type] || NOTICE_ICON.info;
+    n.querySelector('i').innerHTML = NOTICE_ICON[type] || NOTICE_ICON.info;
     n.querySelector('span').textContent = text;
     void n.offsetWidth;
     n.classList.add('show');
@@ -829,6 +829,18 @@ G.UI = (function () {
       if (!s.voice) G.Audio.stopSpeak();
     };
     U.el('set-rate').value = s.rate;
+    const vp = U.el('set-voicepick');
+    function fillVoices() {
+      const names = G.Audio.voices(), cur = G.Audio.chosenVoice();
+      vp.innerHTML = '<option value="">Auto (male, same on every device)</option>' + names.map(function (n) { return '<option value="' + G.Codex.esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + G.Codex.esc(n) + '</option>'; }).join('');
+    }
+    fillVoices();
+    G.Audio.onVoices(fillVoices);
+    vp.onchange = function () {
+      G.Audio.setVoice(vp.value);
+      G.Audio.unlock();
+      G.Audio.speak('Hello Explorer. This is my voice on your device.', s.rate);
+    };
     U.el('set-rate-val').textContent = s.rate.toFixed(1);
     U.el('set-rate').oninput = function () {
       s.rate = parseFloat(this.value);

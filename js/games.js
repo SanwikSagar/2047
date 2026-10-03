@@ -68,7 +68,7 @@ G.Games = (function () {
     const hud = U.el('race-hud');
     let segs = '';
     for (let i = 0; i < gates.length; i++) segs += '<i></i>';
-    hud.innerHTML = '<b>&#127937; SPACE RACE</b><div class="rh-segs">' + segs + '</div><span id="race-time">0.00</span><span id="race-delta"></span><button id="race-quit">QUIT</button>';
+    hud.innerHTML = '<b>' + G.Icon('flag') + ' SPACE RACE</b><div class="rh-segs">' + segs + '</div><span id="race-time">0.00</span><span id="race-delta"></span><button id="race-quit">QUIT</button>';
     U.show('race-hud');
     U.el('race-quit').onclick = function () { endRace(false, 'Race cancelled'); };
     G.UI.koraSay('Space Race! Fly through the glowing gates in order. The amber gate is next and each gate gives you a speed boost. Get ready!');
@@ -148,7 +148,7 @@ G.Games = (function () {
     const xp = { gold: 80, silver: 60, bronze: 45 }[medal] + (best ? 20 : 0);
     G.Save.addXp(xp);
     G.Save.save();
-    const icon = { gold: '&#129351;', silver: '&#129352;', bronze: '&#129353;' }[medal];
+    const icon = { gold: G.Icon('medal', { color: '#ffd23c' }), silver: G.Icon('medal', { color: '#dfe8f2' }), bronze: G.Icon('medal', { color: '#e09a5a' }) }[medal];
     banner('<div class="gb-medal">' + icon + '</div><div class="gb-title">' + medal.toUpperCase() + ' FINISH</div>' +
       '<div class="gb-sub">' + r.t.toFixed(2) + 's' + (best ? ' \u00b7 NEW RECORD' : ' \u00b7 best ' + k.raceBest.toFixed(2) + 's') + ' \u00b7 +' + xp + ' XP</div>' +
       '<div class="gb-hint">' + (medal === 'gold' ? 'Ace pilot!' : 'Gold is under 18 seconds. Use BOOST!') + '</div>', 'finish m-' + medal, 4600);
@@ -178,7 +178,7 @@ G.Games = (function () {
     const el = document.createElement('div');
     el.id = 'fun-overlay';
     el.innerHTML = '<canvas id="fo-canvas"></canvas>' +
-      '<div class="fo-hud"><div class="fo-title">&#11088; STAR CATCHER</div>' +
+      '<div class="fo-hud"><div class="fo-title">' + G.Icon('star') + ' STAR CATCHER</div>' +
         '<div class="fo-stat"><i>SCORE</i><b id="fo-score">0</b></div>' +
         '<div class="fo-stat fo-combo"><i>COMBO</i><b id="fo-combo">x1</b><span class="fo-cbar"><span id="fo-cfill"></span></span></div>' +
         '<div class="fo-stat"><i>TIME</i><b id="fo-time">45</b></div>' +

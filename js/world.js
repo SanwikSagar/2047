@@ -1129,6 +1129,7 @@ G.World = (function () {
         rocks.setMatrixAt(n++, m);
       }
       rocks.count = n;
+      rocks.frustumCulled = false;
       terrainGroup.add(rocks);
     }
     if (st.clouds) {
@@ -1144,6 +1145,7 @@ G.World = (function () {
         puffs.setMatrixAt(i, m);
       }
       terrainGroup.add(puffs);
+      puffs.frustumCulled = false;
     }
     if (bodyId === 'earth') {
       const tg = new THREE.ConeGeometry(1.5, 4, 7);
@@ -1159,6 +1161,7 @@ G.World = (function () {
         trees.setMatrixAt(n++, m);
       }
       trees.count = n;
+      trees.frustumCulled = false;
       terrainGroup.add(trees);
     }
 
@@ -1188,6 +1191,8 @@ G.World = (function () {
     terrainGroup.add(sunSky);
 
     W.scene.add(terrainGroup);
+    // Static terrain never moves: skip per-frame matrix recomputation.
+    terrainGroup.children.forEach(function (o) { if (o.isMesh) { o.matrixAutoUpdate = false; o.updateMatrix(); } });
     spaceGroup.visible = false;
     if (G.Sectors) G.Sectors.setVisible(false);
     sunLight.visible = false;
@@ -1285,6 +1290,8 @@ G.World = (function () {
     updateOrbits(dt);
     for (let i = 0; i < animated.length; i++) animated[i](W.time, dt);
     const cam = W.camera;
+    _fm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    _frustum.setFromProjectionMatrix(_fm);
     stars.position.copy(cam.position);
     sky.position.copy(cam.position);
     updateDust(dt);
@@ -1345,12 +1352,16 @@ G.World = (function () {
     W.renderer.setSize(w, h, false);
     W.camera.aspect = w / h;
     W.camera.updateProjectionMatrix();
-    if (composer) composer.setSize(w, h);
+    if (composer) {
+      // The composer keeps its own pixel ratio; without this it stays at the low startup value and the image blurs.
+      if (composer.setPixelRatio) composer.setPixelRatio(W.renderer.getPixelRatio());
+      composer.setSize(w, h);
+    }
   }
 
   function init(canvas) {
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !LOW_POWER, powerPreference: 'high-performance', precision: LOW_POWER ? 'mediump' : 'highp' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1 : 1.75));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 1.75));
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.setClearColor(0x010207, 1);
     const scene = new THREE.Scene();
@@ -1435,12 +1446,16 @@ G.World = (function () {
     ready = true;
   }
 
+  const _frustum = new THREE.Frustum(), _fm = new THREE.Matrix4(), _fs = new THREE.Sphere();
+  // True when a sphere is inside the camera frustum (from the previous frame's matrices); used to skip work for off-screen props.
+  W.inView = function (pos, r) { _fs.center.copy(pos); _fs.radius = r || 1; return _frustum.intersectsSphere(_fs); };
   W.init = init;
   W.isReady = function () { return ready; };
   W.update = update;
   // Adaptive resolution: trade pixels for frame rate on weaker devices.
-  const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.25 : 1.75), MIN_PR = LOW_POWER ? 0.55 : 0.85;
-  let prNow = Math.min(MAX_PR, LOW_POWER ? 1 : 1.75), frames = 0, frameT = performance.now();
+  // Adaptive resolution: stays sharp (never below ~0.9 of CSS pixels unless the device truly struggles).
+  const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 2 : 1.75), MIN_PR = LOW_POWER ? 0.85 : 0.85;
+  let prNow = Math.min(MAX_PR, LOW_POWER ? 1.5 : 1.75), frames = 0, frameT = performance.now();
   function adaptResolution() {
     frames++;
     const now = performance.now(), el = now - frameT;
@@ -1451,8 +1466,8 @@ G.World = (function () {
     let next = prNow;
     // Already at the lowest resolution and still slow: drop the bloom post-process.
     if (fps < 34 && prNow <= MIN_PR + 0.01 && composer) { composer = null; bloomPass = null; }
-    if (fps < 45 && prNow > MIN_PR) next = Math.max(MIN_PR, prNow - 0.15);
-    else if (fps > 57 && prNow < MAX_PR) next = Math.min(MAX_PR, prNow + 0.05);
+    if (fps < 42 && prNow > MIN_PR) next = Math.max(MIN_PR, prNow - 0.1);
+    else if (fps > 56 && prNow < MAX_PR) next = Math.min(MAX_PR, prNow + 0.1);
     if (Math.abs(next - prNow) > 0.01) {
       prNow = next;
       W.renderer.setPixelRatio(prNow);

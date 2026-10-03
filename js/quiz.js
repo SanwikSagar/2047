@@ -15,7 +15,7 @@ G.Quiz = (function () {
     queue = [];
     title = customTitle || 'Knowledge Check';
     const ic = document.querySelector('#quiz-panel .panel-header-icon');
-    if (ic) ic.innerHTML = iconHtml || '&#10067;';
+    if (ic) ic.innerHTML = iconHtml || G.Icon('question');
     for (let i = 0; i < questionIds.length; i++) {
       const id = questionIds[i];
       const q = typeof id === 'object' ? id : G.QUESTIONS.find(function (x) { return x.id === id; });
