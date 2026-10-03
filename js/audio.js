@@ -8,26 +8,35 @@ G.Audio = (function () {
   let loops = null, lastPlay = {};
   let settings = { music: 0.5, sfx: 0.8 };
 
+  // Phone speakers can't reproduce deep bass, so low notes get audible harmonics and a louder mix.
+  const MOBILE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /[?&]touch=1/.test(location.search);
+
   function ensureCtx() {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      ctx = new AC();
+      try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
       comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
+      comp.threshold.value = MOBILE ? -20 : -14; comp.knee.value = 12; comp.ratio.value = MOBILE ? 6 : 4; comp.attack.value = 0.004; comp.release.value = 0.2;
       comp.connect(ctx.destination);
-      masterGain = ctx.createGain(); masterGain.connect(comp);
-      reverb = ctx.createConvolver(); reverb.buffer = impulse(2.6, 2.4);
-      reverbSend = ctx.createGain(); reverbSend.gain.value = 0.5;
+      masterGain = ctx.createGain(); masterGain.gain.value = MOBILE ? 1.7 : 1; masterGain.connect(comp);
+      reverb = ctx.createConvolver(); reverb.buffer = impulse(MOBILE ? 1.6 : 2.6, 2.4);
+      reverbSend = ctx.createGain(); reverbSend.gain.value = MOBILE ? 0.35 : 0.5;
       reverbSend.connect(reverb); reverb.connect(masterGain);
       musicGain = ctx.createGain(); musicGain.connect(masterGain);
       const mSend = ctx.createGain(); mSend.gain.value = 0.7; musicGain.connect(mSend); mSend.connect(reverb);
       sfxGain = ctx.createGain(); sfxGain.connect(masterGain);
       ambGain = ctx.createGain(); ambGain.connect(masterGain);
       applyVolumes();
+      ctx.onstatechange = function () { if (ctx.state === 'interrupted' && unlocked) resumeCtx(); };
     }
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running' && ctx.state !== 'closed') resumeCtx();
     return ctx;
+  }
+
+  // Old WebKit returns no promise from resume(), and rejections must not surface.
+  function resumeCtx() {
+    try { const p = ctx.resume(); if (p && p.catch) p.catch(function () { }); } catch (e) { }
   }
 
   function impulse(sec, decay) {
@@ -59,6 +68,10 @@ G.Audio = (function () {
   // One shaped note. o: {f, f2, type, dur, vol, a (attack), delay, cut (lowpass), q, pan, rev, out}
   function note(o) {
     if (!ensureCtx()) return;
+    if (MOBILE && o.f < 220 && !o.noHarm && o.out !== musicGain) {
+      note(Object.assign({}, o, { f: o.f * 2, f2: o.f2 ? o.f2 * 2 : 0, vol: (o.vol || 0.2) * 0.55, noHarm: true, cut: o.cut ? o.cut * 2 : 0 }));
+      note(Object.assign({}, o, { f: o.f * 3, f2: o.f2 ? o.f2 * 3 : 0, vol: (o.vol || 0.2) * 0.3, noHarm: true, cut: o.cut ? o.cut * 3 : 0 }));
+    }
     const t0 = ctx.currentTime + (o.delay || 0), dur = o.dur || 0.2;
     const osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = o.type || 'sine';
@@ -137,6 +150,32 @@ G.Audio = (function () {
       hiss({ dur: 1.2, vol: 0.14, f: 3000, f2: 200, type: 'lowpass', delay: 0.95, rev: 0.8 });
     },
     radio: function () { hiss({ dur: 0.12, vol: 0.06, f: 2600, q: 2 }); note({ f: 1900, dur: 0.06, vol: 0.05, type: 'square', cut: 3000, delay: 0.12 }); note({ f: 2400, dur: 0.06, vol: 0.05, type: 'square', cut: 3000, delay: 0.19 }); },
+    // ----- boot sequence and main menu -----
+    powerUp: function () {
+      note({ f: 196, dur: 1.2, vol: 0.06, type: 'sine', a: 0.5, rev: 0.7 });
+      note({ f: 293.7, dur: 1.2, vol: 0.04, type: 'sine', a: 0.6, rev: 0.7 });
+    },
+    bootTick: function () { hiss({ dur: 0.025, vol: 0.05, f: 3500 + Math.random() * 1500, type: 'highpass' }); note({ f: 1800 + Math.random() * 600, dur: 0.02, vol: 0.03, type: 'square', cut: 4000 }); },
+    bootOk: function () {
+      hiss({ dur: 0.025, vol: 0.06, f: 4000, type: 'highpass' });
+      note({ f: 2100, dur: 0.025, vol: 0.035, type: 'square', cut: 4500 });
+      note({ f: 1400, dur: 0.05, vol: 0.03, delay: 0.04, type: 'sine', rev: 0.3 });
+    },
+    bootWarn: function () { note({ f: 440, dur: 0.15, vol: 0.03, type: 'sine', rev: 0.4 }); },
+    bootDone: function () {
+      arp([392, 523.3, 659.3], 0.14, { dur: 0.9, vol: 0.05, type: 'sine', rev: 0.8 });
+    },
+    menuIn: function () {
+      note({ f: 220, f2: 880, dur: 0.9, vol: 0.07, type: 'sine', a: 0.3, rev: 0.7 });
+      hiss({ dur: 0.9, vol: 0.04, f: 1200, f2: 7000, type: 'bandpass', q: 1, a: 0.4, rev: 0.6 });
+    },
+    menuHover: function () { note({ f: 1760, dur: 0.07, vol: 0.03, type: 'sine', rev: 0.4 }); note({ f: 2349, dur: 0.1, vol: 0.02, delay: 0.03, type: 'sine', rev: 0.4 }); },
+    menuSelect: function () {
+      note({ f: 262, f2: 524, dur: 0.2, vol: 0.1, type: 'triangle', rev: 0.4 });
+      note({ f: 784, dur: 0.3, vol: 0.07, delay: 0.1, type: 'sine', rev: 0.6 });
+      hiss({ dur: 0.18, vol: 0.05, f: 3000, f2: 8000, type: 'highpass' });
+    },
+    shootingStar: function () { hiss({ dur: 0.7, vol: 0.025, f: 6000, f2: 1500, type: 'bandpass', q: 2, a: 0.05, rev: 0.6 }); },
     badge: function () {
       arp([784, 988, 1175, 1568], 0.09, { dur: 0.6, vol: 0.11, type: 'triangle', rev: 0.7 });
       arp([1568, 1976, 2349], 0.05, { dur: 0.3, vol: 0.04, type: 'sine', delay: 0.4, rev: 0.7 });
@@ -145,6 +184,8 @@ G.Audio = (function () {
 
   function play(name) {
     if (!ensureCtx() || !sfx[name]) return;
+    // Notes scheduled on a suspended context would all fire at once when it resumes.
+    if (ctx.state !== 'running') return;
     const now = performance.now();
     if (lastPlay[name] && now - lastPlay[name] < (name === 'blip' ? 30 : 60)) return;
     if ((name === 'click' || name === 'tap') && lastPlay.tap && now - lastPlay.tap < 90) return;
@@ -187,17 +228,18 @@ G.Audio = (function () {
     if (!ctx || ctx.state !== 'running') return;
     if (!loops) loops = makeLoops();
     const t = ctx.currentTime, L = loops, lv = Math.min(1, Math.abs(level || 0));
-    const ship = kind === 'ship', rover = kind === 'rover';
+    const ship = kind === 'ship', rover = kind === 'rover', M = MOBILE ? 2.2 : 1;
     L.engGain.gain.setTargetAtTime(ship ? 0.05 + lv * (boost ? 0.28 : 0.16) : 0, t, 0.15);
-    L.engF.frequency.setTargetAtTime(200 + lv * (boost ? 1400 : 700), t, 0.2);
-    L.eng1.frequency.setTargetAtTime(42 + lv * (boost ? 40 : 24), t, 0.25);
-    L.eng2.frequency.setTargetAtTime(42.6 + lv * (boost ? 41 : 24.5), t, 0.25);
+    L.engF.frequency.setTargetAtTime((200 + lv * (boost ? 1400 : 700)) * M, t, 0.2);
+    L.eng1.frequency.setTargetAtTime((42 + lv * (boost ? 40 : 24)) * M, t, 0.25);
+    L.eng2.frequency.setTargetAtTime((42.6 + lv * (boost ? 41 : 24.5)) * M, t, 0.25);
     L.rumG.gain.setTargetAtTime(ship ? lv * (boost ? 0.32 : 0.14) : 0, t, 0.15);
-    L.rumF.frequency.setTargetAtTime(250 + lv * (boost ? 1600 : 500), t, 0.2);
+    L.rumF.frequency.setTargetAtTime((250 + lv * (boost ? 1600 : 500)) * (MOBILE ? 1.8 : 1), t, 0.2);
     L.rovG.gain.setTargetAtTime(rover ? 0.015 + lv * 0.07 : 0, t, 0.12);
-    L.rov.frequency.setTargetAtTime(70 + lv * 160, t, 0.15);
+    L.rov.frequency.setTargetAtTime((70 + lv * 160) * (MOBILE ? 1.6 : 1), t, 0.15);
     L.rovF.frequency.setTargetAtTime(400 + lv * 900, t, 0.15);
-    L.humG.gain.setTargetAtTime(kind ? 0.05 : 0, t, 0.5);
+    L.hum.frequency.setTargetAtTime(MOBILE ? 165 : 55, t, 0.5);
+    L.humG.gain.setTargetAtTime(kind ? (MOBILE ? 0.025 : 0.05) : 0, t, 0.5);
     L.airG.gain.setTargetAtTime(kind ? 0.012 : 0, t, 0.5);
     if (boost && !L.wasBoost && ship) play('boost');
     L.wasBoost = boost && ship;
@@ -213,6 +255,7 @@ G.Audio = (function () {
 
   // ---------- generative ambient music ----------
   const MODES = {
+    menu: { root: 174.61, chords: [[0, 7, 12, 16], [-3, 4, 9, 12], [-5, 2, 7, 11], [0, 5, 9, 14]], arp: 'sine', bpm: 54 },
     earth: { root: 261.63, chords: [[0, 4, 7, 11], [9, 12, 16, 19], [5, 9, 12, 16], [7, 11, 14, 17]], arp: 'triangle', bpm: 76 },
     deep: { root: 220, chords: [[0, 3, 7, 10], [5, 8, 12, 15], [-2, 2, 5, 9], [3, 7, 10, 14]], arp: 'sine', bpm: 64 },
     discovery: { root: 293.66, chords: [[0, 4, 7, 14], [5, 9, 12, 16], [7, 11, 14, 19], [0, 4, 7, 12]], arp: 'triangle', bpm: 84 }
@@ -276,23 +319,136 @@ G.Audio = (function () {
     applyVolumes();
   }
 
+  // ---------- companion voice: prefer a male English voice on every platform ----------
+  const MALE = /\b(male|david|mark|guy|george|james|ryan|daniel|alex|fred|aaron|arthur|rishi|thomas|oliver|gordon|lee|reed|eddy|ralph|albert|bruce|junior|rocko|christopher|eric|roger|steffan|brian|liam|william|andrew|brandon|davis|tony|jason|ravi|prabhat|hemant|madhur)\b/i;
+  const FEMALE = /\b(female|zira|hazel|susan|samantha|karen|moira|tessa|veena|victoria|fiona|serena|kate|catherine|libby|sonia|jenny|aria|emma|michelle|heera|neerja|swara|kalpana|nicky|allison|ava|joanna|kendra|salli|ivy|kimberly|martha|shelley|sandy|flo|grandma)\b/i;
+  // Android/Chrome-OS Google voice codes that are male.
+  const ANDROID_MALE = /(en-us-x-(iol|iom|tpd))|(en-gb-x-(gbd|rjs))|(en-in-x-(ene|end))|(en-au-x-(aub|aud))/i;
+  let voice = null, voicePitch = 0.9;
+
+  function pickVoice() {
+    if (!window.speechSynthesis) return;
+    const vs = window.speechSynthesis.getVoices().filter(function (v) { return /^en/i.test(v.lang); });
+    if (!vs.length) return;
+    const score = function (v) {
+      const n = v.name + ' ' + (v.voiceURI || '');
+      let s = 0;
+      if (ANDROID_MALE.test(n)) s += 50;
+      if (MALE.test(n)) s += 40;
+      if (FEMALE.test(n)) s -= 60;
+      if (/en[-_](gb|in)/i.test(v.lang)) s += 4;
+      if (/natural|neural|online|enhanced|premium/i.test(n)) s += 6;
+      if (v.localService) s += 2;
+      return s;
+    };
+    vs.sort(function (a, b) { return score(b) - score(a); });
+    voice = vs[0];
+    // No male voice installed: deepen the default one.
+    voicePitch = score(voice) >= 30 ? 0.92 : 0.62;
+  }
+  if (window.speechSynthesis) {
+    pickVoice();
+    if (window.speechSynthesis.addEventListener) window.speechSynthesis.addEventListener('voiceschanged', pickVoice);
+    else window.speechSynthesis.onvoiceschanged = pickVoice;
+  }
+
+  let speakId = 0;
   function speak(text, rate, onend) {
-    if (!window.speechSynthesis) { if (onend) onend(); return; }
+    if (!window.speechSynthesis || !text) { if (onend) onend(); return; }
+    const id = ++speakId;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = rate || 1;
-    u.pitch = 1.05;
-    u.volume = settings.sfx;
-    const voices = window.speechSynthesis.getVoices();
-    for (let i = 0; i < voices.length; i++) {
-      if (voices[i].lang && voices[i].lang.indexOf('en') === 0) { u.voice = voices[i]; break; }
+    if (!voice) pickVoice();
+    // Chrome cuts long utterances; speak sentence chunks in sequence.
+    const parts = String(text).replace(/\s+/g, ' ').match(/[^.!?]+[.!?]*\s*/g) || [text];
+    const chunks = [];
+    parts.forEach(function (p) {
+      const last = chunks[chunks.length - 1];
+      if (last && last.length + p.length < 180) chunks[chunks.length - 1] = last + p; else chunks.push(p);
+    });
+    let i = 0;
+    function next() {
+      if (id !== speakId) return;
+      if (i >= chunks.length) { if (onend) onend(); return; }
+      const u = new SpeechSynthesisUtterance(chunks[i++].trim());
+      if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-GB';
+      u.rate = rate || 1;
+      u.pitch = voicePitch;
+      u.volume = Math.max(0.6, settings.sfx);
+      u.onend = next;
+      u.onerror = next;
+      window.speechSynthesis.speak(u);
     }
-    if (onend) u.onend = onend;
-    window.speechSynthesis.speak(u);
+    setTimeout(next, 60);
   }
 
   function stopSpeak() {
+    speakId++;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  // ---------- mobile unlock: audio + speech must be started inside a user gesture ----------
+  let unlocked = false, warmed = false, silentEl = null;
+  function silentWav() {
+    const n = 4410, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = function (o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, 44100, true); v.setUint32(28, 88200, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, n * 2, true);
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+  function silentTick(c) {
+    try { const b = c.createBuffer(1, 1, 22050), s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0); } catch (e) { }
+  }
+  // Mobile browsers only honour resume() inside a real gesture (touchend/click), so keep trying until the context runs.
+  function unlockAll(e) {
+    const c = ensureCtx();
+    if (!c) return;
+    const gesture = !e || (e.type !== 'touchstart' && e.type !== 'pointerdown' && e.type !== 'mousedown');
+    if (c.state !== 'running') {
+      try {
+        const p = c.resume();
+        if (p && p.then) p.then(function () { if (c.state === 'running') { unlocked = true; silentTick(c); } }).catch(function () { });
+      } catch (err) { }
+      silentTick(c);
+    } else unlocked = true;
+    if (!gesture || warmed) return;
+    warmed = true;
+    // iOS 17+: play through the silent switch like a game does.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { }
+    // Older iOS: a looping silent media element moves Web Audio into the playback category.
+    if (MOBILE && /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent) && !navigator.audioSession) {
+      try {
+        silentEl = document.createElement('audio');
+        silentEl.setAttribute('playsinline', ''); silentEl.loop = true; silentEl.src = silentWav();
+        const p = silentEl.play(); if (p && p.catch) p.catch(function () { });
+      } catch (err) { }
+    }
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    }
+  }
+  ['touchstart', 'touchend', 'pointerup', 'mousedown', 'click', 'keydown'].forEach(function (ev) {
+    document.addEventListener(ev, unlockAll, { capture: true, passive: true });
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (!ctx) return;
+    if (document.hidden) { ctx.suspend(); if (silentEl) silentEl.pause(); }
+    else if (unlocked) { resumeCtx(); if (silentEl) { const p = silentEl.play(); if (p && p.catch) p.catch(function () { }); } }
+  });
+  window.addEventListener('pageshow', function () { if (ctx && unlocked) resumeCtx(); });
+  // Android Chrome and iOS can suspend the context when audio focus is lost; recover on the next touch.
+  window.addEventListener('focus', function () { if (ctx && unlocked) resumeCtx(); });
+
+  function test() {
+    unlockAll();
+    setTimeout(function () {
+      play('success');
+      setTimeout(function () { play('warp'); }, 500);
+      setTimeout(function () { speak('Audio check complete. I am KORA, and you can hear me loud and clear.', 1); }, 1700);
+    }, 120);
+    return ctx ? ctx.state : 'unsupported';
   }
 
   // ---------- automatic UI sounds for every button ----------
@@ -302,6 +458,7 @@ G.Audio = (function () {
     const b = e.target.closest && e.target.closest(BTN);
     if (!b || b.disabled) return;
     ensureCtx();
+    if (b.closest('.menu-buttons')) { play('menuSelect'); return; }
     play(/close|back/i.test(b.id + ' ' + b.className) ? 'close' : 'tap');
   }, true);
   document.addEventListener('pointerover', function (e) {
@@ -309,7 +466,7 @@ G.Audio = (function () {
     const b = e.target.closest && e.target.closest(BTN);
     if (b === hoverEl) return;
     hoverEl = b;
-    if (b && !b.disabled) play('hover');
+    if (b && !b.disabled) play(b.closest('.menu-buttons') ? 'menuHover' : 'hover');
   }, true);
 
   return {
@@ -320,6 +477,9 @@ G.Audio = (function () {
     setVolumes: setVolumes,
     speak: speak,
     stopSpeak: stopSpeak,
-    unlock: ensureCtx
+    voiceName: function () { return voice ? voice.name : 'default'; },
+    state: function () { return ctx ? ctx.state : 'none'; },
+    test: test,
+    unlock: unlockAll
   };
 })();

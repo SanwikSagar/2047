@@ -101,6 +101,7 @@ G.StarMap = (function () {
     hits = [];
     g.clearRect(0, 0, W, H);
     const k = K();
+    if (!(k > 0)) return;
     const c0 = toScreen({ x: 0, y: 0 });
 
     // grid
@@ -284,7 +285,7 @@ G.StarMap = (function () {
         g.strokeStyle = a.craft ? '#7fe7ff' : (a.landmark ? '#e0b0ff' : 'rgba(199,155,255,0.75)');
         g.beginPath(); g.moveTo(s.x - 4, s.y); g.lineTo(s.x + 4, s.y); g.moveTo(s.x, s.y - 4); g.lineTo(s.x, s.y + 4); g.stroke();
         addHit(a.id, 'anomaly', s.x, s.y, 7, a);
-        if ((a.landmark || (a.craft && zoom > 3)) && layers.labels) {
+        if ((a.landmark || a.real || (a.craft && zoom > 3)) && layers.labels) {
           g.font = '9px "Share Tech Mono", monospace'; g.fillStyle = a.craft ? '#7fe7ff' : '#e0b0ff';
           g.fillText(a.name, s.x, s.y - 7);
         }

@@ -61,13 +61,38 @@ G.Touch = (function () {
     b.addEventListener('click', function (e) { e.preventDefault(); G.Audio.unlock(); fn(); });
   }
 
-  function goFullscreen() {
+  function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function fsSupported() {
     const el = document.documentElement;
-    if (document.fullscreenElement || !el.requestFullscreen) return;
-    el.requestFullscreen({ navigationUI: 'hide' }).then(function () {
-      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () {});
-    }).catch(function () {});
+    return !!(el.requestFullscreen || el.webkitRequestFullscreen);
   }
+  function lockLandscape() {
+    try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () {}); } catch (e) {}
+  }
+  function enterFullscreen(quiet) {
+    if (fsEl()) return;
+    const el = document.documentElement;
+    if (!fsSupported()) {
+      if (!quiet) G.UI.notify('Fullscreen is not available here. On iPhone use Share > Add to Home Screen.', 'info');
+      return;
+    }
+    try {
+      const p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen();
+      if (p && p.then) p.then(lockLandscape).catch(function () { if (!quiet) G.UI.notify('Fullscreen was blocked. Tap the button again.', 'info'); });
+      else lockLandscape();
+    } catch (e) { }
+  }
+  function toggleFullscreen() {
+    if (fsEl()) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) { }
+    } else enterFullscreen(false);
+  }
+  function syncFsIcon() {
+    const b = U.el('m-full');
+    if (b) b.querySelector('i').innerHTML = fsEl() ? '&#10005;' : '&#9974;';
+  }
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) { document.addEventListener(ev, syncFsIcon); });
+  const goFullscreen = function () { enterFullscreen(true); };
 
   function init() {
     enabled = isTouch();
@@ -81,16 +106,16 @@ G.Touch = (function () {
     hold('m-left', 'a');
     hold('m-right', 'd');
     hold('m-rev', 's');
-    tap('m-full', goFullscreen);
+    tap('m-full', toggleFullscreen);
     tap('m-scan', function () { G.Game.doScan(); });
     tap('m-act', function () { G.Game.doInteract(); });
     tap('m-ship', function () { G.Game.doRoverAction(); });
     tap('m-home', function () { G.Game.goHome(); });
     tap('m-jump', function () { G.Ship.toggleJump(); });
-    tap('m-map', function () { G.UI.toggleMap(); });
     tap('m-journal', function () { G.Journal.open(); });
     tap('m-talk', function () { G.UI.toggleKora(); });
     tap('m-settings', function () { U.show('settings-panel'); });
+    U.el('radar-corner').addEventListener('click', function () { G.UI.toggleMap(); });
     ['hud-objective', 'live-feed'].forEach(function (id) {
       U.el(id).addEventListener('click', function () { if (enabled) U.el(id).classList.toggle('expanded'); });
     });

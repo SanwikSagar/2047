@@ -34,6 +34,7 @@ G.Game = (function () {
     G.Holo.init();
     G.Touch.init();
     applyUiScale();
+    G.FX.init();
     G.HUD.fillTicker();
     G.UI.initKoraPanel();
     G.UI.initProfileScreen();
@@ -44,7 +45,7 @@ G.Game = (function () {
     bindKeys();
     clock = { last: performance.now() };
     requestAnimationFrame(loop);
-    G.HUD.boot(function () { G.Audio.play('ping'); });
+    G.HUD.boot(function () { G.Audio.play('menuIn'); G.Audio.startMusic('menu'); });
     updateMenuProfile();
   }
 
@@ -71,9 +72,9 @@ G.Game = (function () {
             '<div class="exp-name">' + G.Codex.esc(st.profile.name) + '</div>' +
             '<div class="exp-rank">' + G.Codex.esc(rName) + '</div>' +
             '<div class="exp-stats">' +
-              '<span>XP <b>' + xpVal + '</b></span>' +
-              '<span>MISSION <b>' + (st.missionIndex + 1) + '/' + G.MISSIONS.length + '</b></span>' +
-              '<span>CODEX <b>' + codexCount + '</b></span>' +
+              '<span><b>' + xpVal + '</b><i>XP</i></span>' +
+              '<span><b>' + (st.missionIndex + 1) + '/' + G.MISSIONS.length + '</b><i>MISSION</i></span>' +
+              '<span><b>' + codexCount + '</b><i>CODEX</i></span>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -106,7 +107,7 @@ G.Game = (function () {
     };
     U.el('btn-howto').onclick = function () {
       G.Audio.play('click');
-      U.show('howto-panel');
+      G.Guide.open();
     };
     U.el('btn-profile-back').onclick = function () {
       G.Audio.play('click');
@@ -146,7 +147,7 @@ G.Game = (function () {
 
   function bindActions() {
     U.el('btn-scan').onclick = function () { doScan(); };
-    U.el('btn-map').onclick = function () { G.UI.toggleMap(); };
+    U.el('mfd-right').onclick = function () { G.UI.toggleMap(); };
     U.el('btn-rover').onclick = function () { doRoverAction(); };
     U.el('btn-home').onclick = function () { goHome(); };
     U.el('btn-jump').onclick = function () { G.Ship.toggleJump(); };
@@ -242,8 +243,18 @@ G.Game = (function () {
   }
 
   // Heading-up tactical radar on the right dashboard display.
+  let miniT = 0;
   function drawMinimap() {
-    const canvas = document.querySelector('#minimap canvas');
+    // Radar canvases only need ~12 fps.
+    const now = performance.now();
+    if (now - miniT < 80) return;
+    miniT = now;
+    drawRadar('#minimap canvas', false);
+    drawRadar('#radar-corner canvas', true);
+  }
+
+  function drawRadar(sel, small) {
+    const canvas = document.querySelector(sel);
     if (!canvas || !canvas.offsetParent) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2, R = W / 2 - 8;
@@ -282,7 +293,7 @@ G.Game = (function () {
       else if (shape === 'cross') { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - size, y); ctx.lineTo(x + size, y); ctx.moveTo(x, y - size); ctx.lineTo(x, y + size); ctx.stroke(); ctx.lineWidth = 1; }
       else { ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
-      if (label && !edge) {
+      if (label && !edge && !small) {
         ctx.font = '15px "Share Tech Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText(label, x, y - size - 4);
@@ -325,6 +336,7 @@ G.Game = (function () {
     });
     koraOpenCleanup();
     if (id) U.show(id);
+    if (id === 'menu-screen') G.Audio.startMusic('menu');
   }
 
   function koraOpenCleanup() {
@@ -370,6 +382,14 @@ G.Game = (function () {
     G.UI.updateHUD();
     G.Save.visit('earth');
     G.Ship.setFirstMoveCb(G.Missions.onMove);
+    clearTimeout(startPlay._guide);
+    startPlay._guide = setTimeout(function () {
+      const co = G.Save.get().coach || (G.Save.get().coach = {});
+      if (mode !== 'play' || co.flight || landed) return;
+      co.flight = true;
+      G.Save.save();
+      G.UI.koraSay(G.UI.controlsGuide(false));
+    }, 9000);
     // Restore the explorer's exact position when continuing a saved expedition.
     const wp = isContinue ? G.Save.get().worldPos : null;
     if (wp && wp.landed && wp.body && G.World.bodies[wp.body] && G.World.bodies[wp.body].def.type !== 'star') {
@@ -669,7 +689,11 @@ G.Game = (function () {
     }
     let text = null;
     interactTarget = null;
-    if (landed) {
+    const crewNear = G.Crew.interact(landed ? G.Rover.position() : G.Ship.position(), landed);
+    if (crewNear) {
+      text = crewNear.text;
+      interactTarget = crewNear.fn;
+    } else if (landed) {
       const near = G.World.nearestPOI(G.Rover.position(), 20);
       if (near && !near.poi.scanned) {
         text = 'Press E or Q to scan: ' + near.poi.name;
@@ -765,9 +789,11 @@ G.Game = (function () {
       updateInteract();
       updateWaypoint();
       G.UI.updateHUD();
+      G.Crew.update(dt, landed);
       G.HUD.update(dt, info, landed);
       posSaveTimer -= dt;
       if (posSaveTimer <= 0) { posSaveTimer = 5; saveWorldPos(); }
+      if (Math.random() < dt * 4) G.Missions.checkArrival(G.Ship.position(), landed ? G.World.terrainBody : null);
       if (Math.random() < dt * 0.002) G.Save.save();
     } else {
       G.Audio.engine(null, 0, false, dt);

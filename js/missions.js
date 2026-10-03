@@ -132,11 +132,27 @@ G.Missions = (function () {
   }
 
   function onLand(bodyId) {
-    const step = currentStep();
+    let step = currentStep();
     if (!step) return;
+    if (step.type === 'travel_body' && step.target === bodyId) { advance(); step = currentStep(); if (!step) return; }
     if (step.type === 'land' && step.target === bodyId) {
       advance();
     }
+  }
+
+  // Flying to a mission body by hand counts as travelling there.
+  function checkArrival(pos, onBody) {
+    const step = currentStep();
+    if (!step || step.type !== 'travel_body') return;
+    if (onBody) {
+      if (onBody !== step.target) return;
+      advance();
+      const s = currentStep();
+      if (s && s.type === 'land' && s.target === onBody) advance();
+      return;
+    }
+    const b = G.World.bodies[step.target];
+    if (b && pos.distanceTo(b.worldPos) < b.def.radius + 60) advance();
   }
 
   function onReturnShip() {
@@ -210,7 +226,7 @@ G.Missions = (function () {
 
   return {
     current: current, currentStep: currentStep,
-    onScan: onScan, onTravel: onTravel, onDock: onDock, onLand: onLand,
+    onScan: onScan, onTravel: onTravel, onDock: onDock, onLand: onLand, checkArrival: checkArrival,
     onReturnShip: onReturnShip, onNpc: onNpc, onQuiz: onQuiz,
     onRefuel: onRefuel, onReport: onReport, onMove: onMove,
     start: start, status: status

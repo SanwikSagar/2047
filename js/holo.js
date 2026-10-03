@@ -18,7 +18,8 @@ G.Holo = (function () {
     canvas = U.el('holo-canvas');
     mini = U.el('holo-mini');
     if (!canvas) return;
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const LOWP = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /[?&]touch=1/.test(location.search);
+    dpr = LOWP ? 0.65 : Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = 220 * dpr; canvas.height = 220 * dpr;
     ctx = canvas.getContext('2d');
     if (mini) mctx = mini.getContext('2d');
@@ -33,8 +34,11 @@ G.Holo = (function () {
     (function loop(now) {
       requestAnimationFrame(loop);
       const dt = Math.min(0.05, (now - last) / 1000);
-      if (dt < 1 / 45) return;
+      if (dt < (LOWP ? 1 / 28 : 1 / 45)) return;
       last = now;
+      // KORA is only visible in the cockpit HUD and during boot.
+      const hudEl = document.getElementById('hud');
+      if (hudEl && hudEl.classList.contains('hidden') && !document.getElementById('boot-screen')) return;
       draw(now / 1000, dt);
     })(last);
   }

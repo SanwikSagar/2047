@@ -101,13 +101,19 @@ G.Codex = (function () {
   function related(title, limit) {
     const key = 'rel:' + title;
     if (cache[key]) return Promise.resolve(cache[key]);
-    return searchIn('simple', 'morelike:' + title, (limit || 6) + 1)
-      .then(function (t) { return t.length ? t : searchIn('en', 'morelike:' + title, (limit || 6) + 1); })
-      .then(function (t) {
-        const list = t.filter(function (x) { return x !== title; }).slice(0, limit || 6);
-        if (list.length) { cache[key] = list; persist(); }
-        return list;
-      });
+    // morelike needs the exact article title on the same wiki the summary came from.
+    return summary(title).then(function (d) {
+      const real = d && d.title ? d.title : title;
+      const simple = !d || /simple/i.test(d.source || '');
+      const first = simple ? searchIn('simple', 'morelike:' + real, (limit || 6) + 1) : Promise.resolve([]);
+      return first
+        .then(function (t) { return t.length ? t : searchIn('en', 'morelike:' + (d && !simple ? real : title), (limit || 6) + 1); })
+        .then(function (t) {
+          const list = t.filter(function (x) { return x !== title && x !== real; }).slice(0, limit || 6);
+          if (list.length) { cache[key] = list; persist(); }
+          return list;
+        });
+    });
   }
 
   // Answer a free-form question with a short, live Wikipedia-sourced explanation.
@@ -150,6 +156,36 @@ G.Codex = (function () {
       .catch(function () { online = false; return null; });
   }
 
+  // Real stars, exoplanets and galaxies that have English Wikipedia articles (cached for a week).
+  function realObjects() {
+    const KEY = 'g2047_realobj_v1';
+    try {
+      const c = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (c && c.t > Date.now() - 7 * 864e5 && c.list && c.list.length) return Promise.resolve(c.list);
+    } catch (e) { }
+    const one = function (cls, kind, limit) {
+      const q = 'SELECT ?i ?iLabel (SAMPLE(?a) AS ?art) WHERE { ?i wdt:P31 wd:' + cls + '. ?a schema:about ?i; schema:isPartOf <https://en.wikipedia.org/> .' +
+        ' SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } GROUP BY ?i ?iLabel LIMIT ' + limit;
+      return timeout(fetch(SPARQL + encodeURIComponent(q), { headers: { Accept: 'application/sparql-results+json' } }), 15000)
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          return j.results.bindings.map(function (b) {
+            const title = decodeURIComponent((b.art.value.split('/wiki/')[1] || '')).replace(/_/g, ' ');
+            return { name: b.iLabel.value, title: title, kind: kind };
+          }).filter(function (o) { return o.title && !/^Q\d+$/.test(o.name); });
+        })
+        .catch(function () { return []; });
+    };
+    return Promise.all([one('Q44559', 'exo', 300), one('Q523', 'star', 300), one('Q318', 'galaxy', 150)]).then(function (r) {
+      const list = r[0].concat(r[1], r[2]);
+      if (list.length) {
+        online = true;
+        try { localStorage.setItem(KEY, JSON.stringify({ t: Date.now(), list: list })); } catch (e) { }
+      }
+      return list;
+    });
+  }
+
   function record(entry) {
     if (!entry || !entry.title) return false;
     const st = G.Save.get();
@@ -171,7 +207,7 @@ G.Codex = (function () {
   }
 
   return {
-    summary: summary, ask: ask, search: search, moonsOf: moonsOf, record: record,
+    summary: summary, ask: ask, search: search, moonsOf: moonsOf, realObjects: realObjects, record: record,
     titleFor: titleFor, shortText: shortText, esc: esc, ping: ping, related: related,
     isOnline: function () { return online; },
     cached: function (t) { return cache[t] || null; }

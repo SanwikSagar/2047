@@ -7,15 +7,49 @@ G.UI = (function () {
   let currentStation = null;
   let currentNpc = null;
 
+  const NOTICE_ICON = { good: '\u2714', bad: '\u26A0', info: '\u25C8' };
+  let noticeTimer = null, lastNotice = '', lastNoticeAt = 0;
+  // One dedicated slot: new alerts replace the current one instead of stacking.
   function notify(text, type) {
+    text = deviceText(text);
+    type = type || 'info';
+    const now = performance.now();
+    if (text === lastNotice && now - lastNoticeAt < 1500) return;
+    lastNotice = text; lastNoticeAt = now;
     const area = U.el('notification-area');
-    const n = document.createElement('div');
-    n.className = 'notification ' + (type || 'info');
-    n.textContent = text;
-    area.appendChild(n);
+    let n = U.el('notice');
+    if (!n) {
+      n = document.createElement('div');
+      n.id = 'notice';
+      n.innerHTML = '<i></i><span></span><b></b>';
+      area.appendChild(n);
+    }
+    n.className = 'notification ' + type;
+    n.querySelector('i').textContent = NOTICE_ICON[type] || NOTICE_ICON.info;
+    n.querySelector('span').textContent = text;
+    void n.offsetWidth;
+    n.classList.add('show');
     if (type === 'bad') G.Audio.play('alert'); else if (type !== 'info') G.Audio.play('notify');
-    setTimeout(function () { n.classList.add('fadeout'); }, 2600);
-    setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 3100);
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(function () { n.classList.remove('show'); }, type === 'bad' ? 3600 : 2800);
+  }
+
+  // Rewrites keyboard instructions into touch instructions on phones and tablets.
+  function deviceText(text) {
+    if (!text || !(G.Touch && G.Touch.enabled())) return text;
+    return String(text)
+      .replace(/\b(press|tap) (E or Q|Q or E)\b/gi, 'tap SCAN')
+      .replace(/\bpress Q\b/gi, 'tap SCAN').replace(/\(Q\)/g, '(SCAN)').replace(/\bwith Q\b/gi, 'with SCAN')
+      .replace(/\bpress E\b/gi, 'tap GO').replace(/\bE: land\b/g, 'GO: land').replace(/\bQ: scan\b/g, 'SCAN:')
+      .replace(/\bpress R\b/gi, 'tap SHIP').replace(/\(R\)/g, '(SHIP)')
+      .replace(/\bwith M\b/g, 'with the MAP button').replace(/\bpress M\b/gi, 'tap MAP').replace(/\(M\)/g, '(MAP)')
+      .replace(/\bpress J\b/gi, 'tap LOG').replace(/\bpress K\b/gi, 'tap COMMS')
+      .replace(/\bpress H\b/gi, 'tap JUMP').replace(/\bpress B\b/gi, 'tap HOME')
+      .replace(/\buse WASD to thrust\b/gi, 'slide THRUST up to fly')
+      .replace(/\b(press|use|hold) (W|W and S|WASD)\b/gi, 'slide THRUST')
+      .replace(/\b(press|hold) Shift\b/gi, 'hold BOOST').replace(/\b(press|hold|tap) Space(bar)?\b/gi, 'tap STOP')
+      .replace(/\b(drag|move) (the )?mouse\b/gi, 'drag the screen')
+      .replace(/\bclick\b/gi, 'tap');
   }
 
   function discoveryToast(title, text) {
@@ -30,9 +64,11 @@ G.UI = (function () {
     t._a = setTimeout(function () { t.classList.add('fadeout'); }, 3200);
     t._b = setTimeout(function () { t.classList.add('hidden'); }, 3800);
     if (G.Holo) G.Holo.mood('happy', 3);
+    if (G.FX) G.FX.burst(window.innerWidth / 2, window.innerHeight * 0.3, '255,190,80', 34);
   }
 
   function koraSay(text, live) {
+    text = deviceText(text);
     addKoraMessage(text, 'kora', live);
     const st = G.Save.get();
     if (st.settings.voice) {
@@ -43,6 +79,7 @@ G.UI = (function () {
 
   function koraVoice(text) {
     if (!text) return;
+    text = deviceText(text);
     const st = G.Save.get();
     if (st.settings.voice) G.Audio.speak(text, st.settings.rate);
     if (G.Holo) G.Holo.speak(text);
@@ -98,7 +135,7 @@ G.UI = (function () {
     const sugg = G.KORA_LINES.suggestions.slice(0, 4);
     const nb = G.World.nearestBody(G.Ship.position(), 600);
     if (nb && nb.body) sugg.unshift('Tell me about ' + nb.body.def.name.replace(/^The /, 'the '));
-    sugg.push('What is a black hole?', 'How do stars form?');
+    sugg.push('How do I fly?', 'What is a black hole?', 'How do stars form?');
     for (let i = 0; i < sugg.length; i++) {
       const chip = document.createElement('button');
       chip.className = 'suggestion-chip';
@@ -108,9 +145,30 @@ G.UI = (function () {
     }
   }
 
+  function controlsGuide(landed) {
+    const touch = G.Touch && G.Touch.enabled();
+    if (touch) {
+      return landed
+        ? 'Rover controls: slide THRUST up to drive, hold LEFT or RIGHT to turn, REVERSE to back up and STOP to brake. Drag the screen to look around. Tap SCAN near a glowing ring, tap TALK near an astronaut, and tap SHIP to fly back to your ship.'
+        : 'Flight controls: drag anywhere on the screen to steer. Slide THRUST up to fly forward, hold BOOST to go faster, STOP to brake, UP and DOWN to rise or sink. Tap SCAN near an object, GO to land or dock, MAP to choose a destination, and HOME to jump back to Earth.';
+    }
+    return landed
+      ? 'Rover controls: W and S to drive, A and D to steer, drag the mouse to look around. Press Q near a glowing ring to scan it, E to talk to astronauts, and R to return to your ship.'
+      : 'Flight controls: W and S for thrust, A and D or drag the mouse to steer, arrow keys to pitch, Shift to boost, Space to brake, R and F to rise or sink. Press Q to scan, E to land or dock, M for the map, B to go home, and H for the jump drive beyond Neptune.';
+  }
+
   function sendKora(text) {
     if (!text || !text.trim()) return;
     addKoraMessage(text, 'player');
+    if (/\b(guide|tutorial|how to play)\b/i.test(text)) {
+      koraSay('Opening the Explorer Guide for you!');
+      G.Guide.open(1);
+      return;
+    }
+    if (/\b(controls?|how (do|can) i (fly|drive|move|play|steer|scan|land)|how to (fly|play|drive|move))\b/i.test(text)) {
+      koraSay(controlsGuide(G.Game.isLanded()));
+      return;
+    }
     answer(text);
   }
 
@@ -212,7 +270,7 @@ G.UI = (function () {
     for (let i = 0; i < m.steps.length; i++) {
       const cls = i < G.Save.get().missionStep ? 'step-done' : i === G.Save.get().missionStep ? 'step-active' : '';
       const mark = i < G.Save.get().missionStep ? '&#10003; ' : i === G.Save.get().missionStep ? '&#9654; ' : '&#9679; ';
-      html += '<div class="' + cls + '">' + mark + m.steps[i].text + '</div>';
+      html += '<div class="' + cls + '">' + mark + deviceText(m.steps[i].text) + '</div>';
     }
     U.el('objective-steps').innerHTML = html;
   }
@@ -250,17 +308,22 @@ G.UI = (function () {
   function setInteract(text) {
     const el = U.el('hud-interact');
     const act = U.el('m-act');
+    const isScanText = !!text && /scan/i.test(text) && !/land|dock|talk/i.test(text);
     if (text) {
-      if (G.Touch && G.Touch.enabled()) text = text.replace(/^Press (E or Q|Q) to scan/, 'Tap SCAN to scan').replace(/^Press [A-Z] to/, 'Tap \u25C6 to');
-      el.textContent = text;
+      if (G.Touch && G.Touch.enabled()) text = deviceText(text.replace(/^Press (E or Q|Q) to scan/, 'Tap SCAN to scan').replace(/^Press [A-Z] to/, 'Tap \u25C6 to'));
+      if (el.textContent !== text) el.textContent = text;
       el.classList.remove('hidden');
     } else {
       el.classList.add('hidden');
     }
     if (act) {
-      const label = !text ? 'GO' : /land/i.test(text) ? 'LAND' : /dock/i.test(text) ? 'DOCK' : /return/i.test(text) ? 'BOARD' : /scan/i.test(text) ? 'SCAN' : 'GO';
+      const label = !text ? 'GO' : /land/i.test(text) ? 'LAND' : /dock/i.test(text) ? 'DOCK' : /return/i.test(text) ? 'BOARD' : /talk/i.test(text) ? 'TALK' : 'GO';
       act.querySelector('b').textContent = label;
-      act.classList.toggle('ready', !!text);
+      // GO only lights up for land/dock/talk; scanning has its own SCAN button.
+      act.classList.toggle('ready', !!text && !isScanText);
+      act.classList.toggle('idle', !text || isScanText);
+      const sc = U.el('m-scan');
+      if (sc) sc.classList.toggle('ready', isScanText);
     }
   }
   function openMap() { G.StarMap.open(); }
@@ -364,7 +427,7 @@ G.UI = (function () {
   function questionsFor(name, type) {
     const n = name.replace(/^The /, 'the ');
     if (/BLACK HOLE/i.test(type)) return ['What is a black hole?', 'What would happen if you fell into ' + n + '?', 'How was ' + n + ' photographed?'];
-    if (/NEBULA|GALAXY|STAR|PLANETARY SYSTEM|EXOPLANET|COMET RESERVOIR/i.test(type)) return ['How far away is ' + n + ' in light-years?', 'What is ' + n + ' made of?', 'How long would it take to travel to ' + n + '?', 'What is a light-year?'];
+    if (/NEBULA|GALAXY|STAR|PLANETARY SYSTEM|EXOPLANET|EXTRASOLAR|HOT JUPITER|SUPER-EARTH|COMET RESERVOIR/i.test(type)) return ['How far away is ' + n + ' in light-years?', 'What is ' + n + ' made of?', 'How long would it take to travel to ' + n + '?', 'What is a light-year?'];
     if (/LIVING|FOREST|TREE|LIFE/i.test(type)) return ['Why are ' + n.toLowerCase() + 's important?', 'What animals live in a ' + n.toLowerCase() + '?', 'How do plants make food?'];
     if (/STORM|CLOUD|WIND|LIGHTNING|ATMOSPHERE|WEATHER/i.test(type)) return ['Why does ' + n + ' happen?', 'How big is ' + n + '?', 'Is there weather on Earth like ' + n + '?'];
     if (/VOLCANO|GEYSER|PLUME|LAVA/i.test(type)) return ['How do volcanoes work?', 'What comes out of ' + n + '?', 'Is ' + n + ' still active?'];
@@ -383,19 +446,22 @@ G.UI = (function () {
     U.el('scan-subtitle').textContent = scanning ? 'Scanning...' : (t.type || 'Discovery').toString().toLowerCase();
     let html = '';
     if (kxHistory.length) html += '<button class="kx-back" id="kx-back">&#8592; Back to ' + E(kxHistory[kxHistory.length - 1].name) + '</button>';
-    html += '<div class="kx-hero"><div class="kx-img-wrap"><img id="kx-img" alt=""></div><div><div class="kx-type">' + E(t.type || 'DISCOVERY') + '</div><h3>' + E(t.name) + '</h3><div class="kx-desc" id="kx-desc"></div></div></div>';
-    if (scanning) html += '<div class="kx-scan" id="kx-scan"><span>Scanning target</span><div class="scan-progress-bar"><div class="scan-progress-fill" id="scan-fill"></div></div></div>';
+    html += '<div class="kx-hero"><div class="kx-img-wrap"><img id="kx-img" alt=""><span class="kx-img-ph">&#8982;</span></div><div class="kx-head"><div class="kx-type">' + E(t.type || 'DISCOVERY') + '</div><h3>' + E(t.name) + '</h3><div class="kx-desc" id="kx-desc"></div></div></div>';
+    const kinfo = t.poi ? (G.Scanner.infoFor(t.poi.kind) || {}) : {};
+    const ktags = (t.tags || kinfo.tags || []).slice(0, 4);
+    const kxp = t.xp || kinfo.xp;
+    if (ktags.length || kxp) html += '<div class="kx-tags">' + ktags.map(function (x) { return '<span>' + E(x) + '</span>'; }).join('') + (kxp ? '<span class="xp">+' + kxp + ' XP</span>' : '') + '</div>';
+    if (scanning) html += '<div class="kx-scan" id="kx-scan"><div class="kx-scan-row"><span>SCANNING TARGET</span><b id="scan-pct">0%</b></div><div class="scan-progress-bar"><div class="scan-progress-fill" id="scan-fill"></div></div></div>';
     if (t.observation) html += '<div class="kx-obs">' + E(t.observation) + '</div>';
     html += '<div class="kx-text" id="kx-text"><span class="kx-loading">Asking the space library</span></div>';
-    html += '<div class="kx-section">Ask KORA</div><div class="kx-chips" id="kx-ask"></div><div id="kx-answer"></div>';
-    html += '<div class="kx-section">Related topics</div><div class="kx-chips" id="kx-rel"><span class="kx-loading">finding topics</span></div>';
     html += '<div class="kx-actions" id="kx-actions"></div><div class="kx-src" id="kx-src"></div>';
+    html += '<details class="kx-more"><summary>Ask KORA &amp; related topics</summary><div class="kx-chips" id="kx-ask"></div><div id="kx-answer"></div><div class="kx-chips" id="kx-rel"><span class="kx-loading">finding topics</span></div></details>';
     U.el('scan-body').innerHTML = html;
     U.el('scan-body').scrollTop = 0;
     if (U.el('kx-back')) U.el('kx-back').onclick = function () { const prev = kxHistory.pop(); renderKnowledge(prev, false); };
 
     const ask = U.el('kx-ask');
-    questionsFor(t.name, t.type || '').forEach(function (q) {
+    questionsFor(t.name, t.type || '').slice(0, 3).forEach(function (q) {
       const b = document.createElement('button');
       b.className = 'kx-chip ask';
       b.textContent = q;
@@ -462,7 +528,7 @@ G.UI = (function () {
       }
       if (G.Codex.record(d)) G.Journal.refresh();
     });
-    G.Codex.related(t.title, 6).then(function (list) {
+    G.Codex.related(t.title, 4).then(function (list) {
       const rel = U.el('kx-rel');
       if (kx !== t || !rel) return;
       rel.innerHTML = '';
@@ -505,7 +571,7 @@ G.UI = (function () {
     const s = U.el('kx-scan');
     if (s) {
       s.classList.add('done');
-      s.innerHTML = '<span>Scan complete' + (info && info.xp ? ' +' + info.xp + ' XP' : '') + '</span>';
+      s.innerHTML = '<div class="kx-scan-row"><span>&#10003; SCAN COMPLETE</span><b>' + (info && info.xp ? '+' + info.xp + ' XP' : '') + '</b></div>';
     }
     U.el('scan-subtitle').textContent = 'scanned';
     if (kx && kx.poi === poi) kx.canScan = false;
@@ -514,6 +580,8 @@ G.UI = (function () {
   function updateScanPanel() {
     const fill = U.el('scan-fill');
     if (fill) fill.style.width = Math.round(G.Scanner.progress() * 100) + '%';
+    const pct = U.el('scan-pct');
+    if (pct) pct.textContent = Math.round(G.Scanner.progress() * 100) + '%';
   }
 
   function closeScanPanel() { U.hide('scan-panel'); kx = null; }
@@ -668,6 +736,7 @@ G.UI = (function () {
       G.Audio.play('click');
       G.UI.notify('Progress saved', 'good');
     };
+    if (G.Crew) G.Crew.decorateStation(s, body, renderStation);
   }
 
   function closeStation() {
@@ -743,6 +812,10 @@ G.UI = (function () {
   }
 
   function initSettings() {
+    U.el('set-test').onclick = function () {
+      const s = G.Audio.test();
+      notify(s === 'unsupported' ? 'This browser has no Web Audio support' : 'Playing test sound — voice: ' + G.Audio.voiceName(), 'info');
+    };
     const st = G.Save.get();
     const s = st.settings;
     const voiceBtn = U.el('set-voice');
@@ -777,6 +850,15 @@ G.UI = (function () {
       U.el('set-sfx-val').textContent = Math.round(s.sfx * 100) + '%';
       G.Save.setSettings({ sfx: s.sfx });
       G.Audio.setVolumes(s.music, s.sfx);
+    };
+    const comfortBtn = U.el('set-comfort');
+    const showComfort = function () { const on = s.eyeComfort !== false; comfortBtn.textContent = on ? 'On' : 'Off'; comfortBtn.className = 'toggle' + (on ? ' on' : ''); };
+    showComfort();
+    comfortBtn.onclick = function () {
+      s.eyeComfort = s.eyeComfort === false;
+      G.Save.setSettings({ eyeComfort: s.eyeComfort });
+      applySettings();
+      showComfort();
     };
     const motionBtn = U.el('set-motion');
     motionBtn.textContent = s.reducedMotion ? 'On' : 'Off';
@@ -847,6 +929,9 @@ G.UI = (function () {
     const s = G.Save.get().settings;
     document.body.classList.toggle('reduced-motion', s.reducedMotion);
     document.body.classList.toggle('high-contrast', s.highContrast);
+    G.comfort = s.eyeComfort !== false;
+    document.body.classList.toggle('comfort', G.comfort);
+    if (G.World && G.World.setComfort) G.World.setComfort(G.comfort);
     document.body.classList.toggle('text-large', s.textSize === 'large');
     document.body.classList.toggle('text-xlarge', s.textSize === 'xlarge');
     G.Audio.setVolumes(s.music, s.sfx);
@@ -857,7 +942,7 @@ G.UI = (function () {
   }
 
   return {
-    notify: notify, discoveryToast: discoveryToast, koraSay: koraSay, koraVoice: koraVoice,
+    notify: notify, discoveryToast: discoveryToast, koraSay: koraSay, koraVoice: koraVoice, deviceText: deviceText, controlsGuide: controlsGuide,
     addKoraMessage: addKoraMessage,
     openKora: openKora, closeKora: closeKora, toggleKora: toggleKora,
     initKoraPanel: initKoraPanel,

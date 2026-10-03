@@ -8,10 +8,17 @@ G.Quiz = (function () {
   let onDone = null;
   let answered = false;
 
-  function start(questionIds, doneCb) {
+  let title = 'Knowledge Check';
+
+  // Accepts question ids or ready-made question objects.
+  function start(questionIds, doneCb, customTitle, iconHtml) {
     queue = [];
+    title = customTitle || 'Knowledge Check';
+    const ic = document.querySelector('#quiz-panel .panel-header-icon');
+    if (ic) ic.innerHTML = iconHtml || '&#10067;';
     for (let i = 0; i < questionIds.length; i++) {
-      const q = G.QUESTIONS.find(function (x) { return x.id === questionIds[i]; });
+      const id = questionIds[i];
+      const q = typeof id === 'object' ? id : G.QUESTIONS.find(function (x) { return x.id === id; });
       if (q) queue.push(q);
     }
     index = 0;
@@ -24,7 +31,7 @@ G.Quiz = (function () {
   function renderQuestion() {
     answered = false;
     const q = queue[index];
-    U.el('quiz-title').textContent = 'Knowledge Check';
+    U.el('quiz-title').textContent = title;
     U.el('quiz-subtitle').textContent = 'Question ' + (index + 1) + ' of ' + queue.length;
     const body = U.el('quiz-body');
     let html = '<div class="quiz-question">' + q.text + '</div>';

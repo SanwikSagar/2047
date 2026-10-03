@@ -10,6 +10,7 @@ G.Save = (function () {
     music: 0.5,
     sfx: 0.8,
     reducedMotion: false,
+    eyeComfort: true,
     highContrast: false,
     textSize: 'normal'
   };

@@ -6,6 +6,7 @@ G.Journal = (function () {
 
   const TABS = [
     { id: 'planets', name: 'Planets' },
+    { id: 'cards', name: 'Cards' },
     { id: 'codex', name: 'Live Codex' },
     { id: 'missions', name: 'Missions' },
     { id: 'science', name: 'Science' },
@@ -43,6 +44,8 @@ G.Journal = (function () {
         html += '<div class="je-level">' + (known ? 'Scanned' : (st.visited.indexOf(p.id) >= 0 ? 'Visited' : 'Unvisited')) + '</div>';
         html += '</div>';
       }
+    } else if (activeTab === 'cards') {
+      html = G.Crew.cardsHtml();
     } else if (activeTab === 'codex') {
       const list = (st.codex || []).slice().reverse();
       if (!list.length) html = '<div class="journal-empty">No live entries yet. Fly near planets, moons and asteroids, or scan them, and KORA will download real data from Wikipedia.</div>';
@@ -101,21 +104,25 @@ G.Journal = (function () {
       for (let i = 0; i < G.BADGES.length; i++) {
         const b = G.BADGES[i];
         const has = G.Save.hasBadge(b.id);
-        html += '<div class="badge-item' + (has ? '' : ' locked') + '">';
-        html += '<div class="badge-icon">' + b.icon + '</div>';
-        html += '<div><div class="badge-name">' + b.name + '</div>';
-        html += '<div class="badge-desc">' + b.desc + '</div></div></div>';
+        const hidden = b.secret && !has;
+        html += '<div class="badge-item' + (has ? '' : ' locked') + (b.secret ? ' secret' : '') + '">';
+        html += '<div class="badge-icon">' + (hidden ? '?' : b.icon) + '</div>';
+        html += '<div><div class="badge-name">' + (hidden ? 'Secret Badge' : b.name) + '</div>';
+        html += '<div class="badge-desc">' + (hidden ? 'A hidden secret somewhere in the galaxy\u2026' : b.desc) + '</div></div></div>';
       }
     }
 
     if (activeTab === 'science') {
       U.el('journal-progress').textContent = count + ' / ' + total + ' topics';
+    } else if (activeTab === 'cards') {
+      U.el('journal-progress').textContent = G.Crew.cardCount() + ' cards collected';
     } else if (activeTab === 'codex') {
       U.el('journal-progress').textContent = (st.codex || []).length + ' live entries';
     } else {
       U.el('journal-progress').textContent = st.completedMissions.length + ' / ' + G.MISSIONS.length + ' missions';
     }
     contentEl.innerHTML = html;
+    if (activeTab === 'cards') G.Crew.bindGallery(contentEl);
   }
 
   function refresh() {

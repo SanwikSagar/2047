@@ -51,9 +51,33 @@ G.Sectors = (function () {
       obs: 'An old, silent spacecraft drifting in the dark. Its solar panels are pitted by micrometeoroids.', tags: ['spacecraft', 'debris', 'history'] }
   };
 
+  // Real objects for the endless interstellar sectors. Wikidata adds hundreds more when online.
+  const REAL_OFFLINE = [
+    ['Vega', 'Vega', 'star'], ['Sirius B', 'Sirius B', 'star'], ['Polaris', 'Polaris', 'star'], ['Tau Ceti', 'Tau Ceti', 'star'],
+    ['Epsilon Eridani', 'Epsilon Eridani', 'star'], ['Altair', 'Altair', 'star'], ['Deneb', 'Deneb', 'star'], ['Rigel', 'Rigel', 'star'],
+    ['Antares', 'Antares', 'star'], ['Aldebaran', 'Aldebaran', 'star'], ['Arcturus', 'Arcturus', 'star'], ['Capella', 'Capella', 'star'],
+    ['Wolf 359', 'Wolf 359', 'star'], ['Ross 128', 'Ross 128', 'star'], ['Gliese 581', 'Gliese 581', 'star'], ['Kepler-452b', 'Kepler-452b', 'exo'],
+    ['Kepler-186f', 'Kepler-186f', 'exo'], ['51 Pegasi b', '51 Pegasi b', 'exo'], ['HD 209458 b', 'HD 209458 b', 'exo'], ['TOI-700 d', 'TOI-700 d', 'exo'],
+    ['K2-18b', 'K2-18b', 'exo'], ['55 Cancri e', '55 Cancri e', 'exo'], ['WASP-12b', 'WASP-12b', 'exo'], ['Kepler-22b', 'Kepler-22b', 'exo'],
+    ['Pleiades', 'Pleiades', 'cluster'], ['Crab Nebula', 'Crab Nebula', 'nebula'], ['Ring Nebula', 'Ring Nebula', 'nebula'], ['Eagle Nebula', 'Eagle Nebula', 'nebula'],
+    ['Helix Nebula', 'Helix Nebula', 'nebula'], ['Horsehead Nebula', 'Horsehead Nebula', 'nebula'], ['Large Magellanic Cloud', 'Large Magellanic Cloud', 'galaxy'],
+    ['Triangulum Galaxy', 'Triangulum Galaxy', 'galaxy'], ['Whirlpool Galaxy', 'Whirlpool Galaxy', 'galaxy'], ['Sombrero Galaxy', 'Sombrero Galaxy', 'galaxy'],
+    ['Omega Centauri', 'Omega Centauri', 'cluster'], ['Cygnus X-1', 'Cygnus X-1', 'blackhole'], ['Crab Pulsar', 'Crab Pulsar', 'star']
+  ].map(function (r) { return { name: r[0], title: r[1], kind: r[2] }; });
+  let realPool = REAL_OFFLINE.slice();
+  const REAL_TYPES = {
+    star: ['STAR', 'A real star with its own Wikipedia entry. Scan it to hear what astronomers know.'],
+    exo: ['EXOPLANET', 'A real planet orbiting another star, discovered by astronomers on Earth.'],
+    galaxy: ['GALAXY', 'A real galaxy: billions of stars held together by gravity.'],
+    nebula: ['NEBULA', 'A real cloud of glowing gas and dust in space.'],
+    cluster: ['STAR CLUSTER', 'A real group of stars that formed together.'],
+    blackhole: ['BLACK HOLE SYSTEM', 'A real place where gravity is so strong that not even light escapes.']
+  };
+
   function init() {
     root = new THREE.Group();
     G.World.scene.add(root);
+    G.Codex.realObjects().then(function (list) { if (list && list.length) realPool = REAL_OFFLINE.concat(list); });
     for (const k in KINDS) {
       const d = KINDS[k];
       G.Scanner.register(k, {
@@ -95,8 +119,61 @@ G.Sectors = (function () {
     return matCache[k];
   }
 
+  function realMesh(kind, size, seed) {
+    const g = new THREE.Group(), rnd = U.mulberry32(seed);
+    const STAR_COLS = [0x9bb0ff, 0xcad7ff, 0xf8f7ff, 0xfff4ea, 0xffd2a1, 0xffb36b, 0xff8a4a];
+    if (kind === 'star' || kind === 'blackhole') {
+      const col = kind === 'blackhole' ? 0x000000 : STAR_COLS[Math.floor(rnd() * STAR_COLS.length)];
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(size, 24, 16), new THREE.MeshBasicMaterial({ color: col })));
+      const glowCol = kind === 'blackhole' ? 0xff9a40 : col;
+      g.add(G.World.glowSprite(glowCol, size * 7, 0.55));
+      g.add(G.World.glowSprite(0xffffff, size * 2.6, kind === 'blackhole' ? 0.15 : 0.45));
+    } else if (kind === 'exo') {
+      const col = new THREE.Color().setHSL(rnd(), 0.45, 0.45);
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(size, 24, 16), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, roughness: 0.9 })));
+      g.add(G.World.glowSprite(col.getHex(), size * 4, 0.3));
+      const star = G.World.glowSprite(STAR_COLS[Math.floor(rnd() * STAR_COLS.length)], size * 6, 0.8);
+      star.position.set(size * 9, size * 2, -size * 6);
+      g.add(star);
+    } else {
+      const tints = kind === 'galaxy' ? [0xffe0b0, 0x9fc0ff] : kind === 'cluster' ? [0xcfe0ff, 0xffffff] : [[0xff5aa0, 0x7a5aff], [0x5aaaff, 0x3a6aff], [0xffaa5a, 0xff5a3a]][Math.floor(rnd() * 3)];
+      const n = kind === 'cluster' ? 14 : 6;
+      for (let i = 0; i < n; i++) {
+        const s = G.World.glowSprite(tints[i % 2], size * (kind === 'cluster' ? 0.9 + rnd() : 2.5 + rnd() * 3), kind === 'cluster' ? 0.9 : 0.4);
+        s.position.set((rnd() - 0.5) * size * 4, (rnd() - 0.5) * size * (kind === 'galaxy' ? 0.6 : 2.5), (rnd() - 0.5) * size * 4);
+        g.add(s);
+      }
+      if (kind === 'galaxy') g.add(G.World.glowSprite(0xfff0c8, size * 2.2, 0.9));
+    }
+    return g;
+  }
+
+  function makeReal(sec, cx, cz, seed, rnd) {
+    const o = realPool[seed % realPool.length];
+    const id = 'real_' + o.title.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if (anomalies.some(function (a) { return a.id === id; })) return;
+    const T = REAL_TYPES[o.kind] || REAL_TYPES.star;
+    G.Scanner.register(id, {
+      name: o.name, type: T[0], observation: T[1] + ' Live data loading...', tags: ['real object', T[0].toLowerCase()],
+      knowledgeId: null, codex: o.title, xp: 30, kora: 'This is ' + o.name + ', a real ' + T[0].toLowerCase() + '. Let me fetch what scientists know about it.'
+    });
+    const size = o.kind === 'star' ? 4 + rnd() * 6 : o.kind === 'exo' ? 3 + rnd() * 3 : 10 + rnd() * 8;
+    const pos = new THREE.Vector3(cx + (rnd() - 0.5) * S * 0.7, (rnd() - 0.5) * 40, cz + (rnd() - 0.5) * S * 0.7);
+    const a = addAnomaly(sec, { real: o, type: T[0] }, id, id, o.name, pos, size, seed);
+    a.real = o; a.type = T[0]; a.hud = 420; a.surface = size; a.spin = 0.02;
+    if (o.kind === 'star' || o.kind === 'exo' || o.kind === 'blackhole') a.solid = size + 2;
+    G.Codex.summary(o.title).then(function (d) {
+      if (!d) return;
+      const info = G.Scanner.infoFor(id);
+      info.observation = G.Codex.shortText(d.extract, 2);
+      info.kora = G.Codex.shortText(d.extract, 3);
+      if (d.description) { a.type = d.description.toUpperCase().slice(0, 40); info.type = a.type; }
+    });
+  }
+
   function makeAnomalyMesh(d, size, seed) {
     const g = new THREE.Group();
+    if (d.real) return realMesh(d.real.kind, size, seed);
     if (d.probe) {
       const gold = new THREE.MeshStandardMaterial({ color: 0xd9a441, roughness: 0.3, metalness: 0.3 });
       g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.5, 10), gold));
@@ -204,6 +281,8 @@ G.Sectors = (function () {
         addAnomaly(sec, d, kind, 'sec_' + k + '_' + i, desig + ' (' + d.name + ')', pos, 1.2 + rnd() * 2.2, seed + i);
       }
     }
+
+    if (interstellar && rnd() < 0.65) makeReal(sec, cx, cz, seed, rnd);
 
     LANDMARKS.forEach(function (l) {
       const s = sectorOf(l.pos);

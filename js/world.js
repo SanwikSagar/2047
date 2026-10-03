@@ -12,7 +12,8 @@ G.World = (function () {
   const ZERO = new THREE.Vector3();
   const TERRAIN_SIZE = 1600, TERRAIN_SEG = 256;
   const LOW_POWER = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /[?&]touch=1/.test(location.search);
-  const SPACE_AMB = 0.5, BLOOM = 0.32;
+  const SPACE_AMB = 0.5, BLOOM = 0.24;
+  let comfortK = 1;
 
   let ready = false;
   let spaceGroup, terrainGroup = null, terrain = null;
@@ -40,17 +41,52 @@ G.World = (function () {
 
   function sunMaterial() {
     return new THREE.ShaderMaterial({
-      uniforms: { t: { value: 0 } },
+      uniforms: { t: { value: 0 }, map: { value: null }, useMap: { value: 0 } },
       vertexShader: 'varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' +
         'void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'uniform float t; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + NOISE_GLSL + '\n' +
+      fragmentShader: 'uniform float t; uniform sampler2D map; uniform float useMap; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + NOISE_GLSL + '\n' +
         'void main(){ vec3 n = normalize(vP);' +
-        ' float f = fbm(n * 3.0 + vec3(t * 0.04, t * 0.02, 0.0));' +
-        ' float g = fbm(n * 11.0 - vec3(0.0, t * 0.07, t * 0.05));' +
-        ' float k = f * 0.6 + g * 0.4;' +
-        ' vec3 c = mix(vec3(1.0, 0.38, 0.04), vec3(1.0, 0.92, 0.55), smoothstep(0.35, 0.75, k));' +
-        ' float limb = pow(max(dot(vN, vV), 0.0), 0.45);' +
-        ' c *= 0.9 + 1.2 * limb; gl_FragColor = vec4(c * 1.0, 1.0); }'
+        ' float big = fbm(n * 2.2 + vec3(t * 0.015, 0.0, t * 0.01));' +
+        ' float gran = 1.0 - abs(noise(n * 38.0 + vec3(t * 0.25, -t * 0.18, t * 0.21)) * 2.0 - 1.0);' +
+        ' gran = pow(gran, 2.5);' +
+        ' float fine = fbm(n * 14.0 - vec3(0.0, t * 0.06, t * 0.04));' +
+        ' float heat = 0.55 + 0.25 * big + 0.22 * gran + 0.12 * fine;' +
+        ' vec3 c = mix(vec3(0.95, 0.32, 0.03), vec3(1.0, 0.86, 0.45), smoothstep(0.45, 0.95, heat));' +
+        ' c = mix(c, vec3(1.0, 0.98, 0.85), smoothstep(0.88, 1.05, heat) * 0.6);' +
+        ' if (useMap > 0.5) { vec2 uv = vec2(atan(n.z, n.x) / 6.2831853 + 0.5 + t * 0.0015, asin(clamp(n.y, -1.0, 1.0)) / 3.1415926 + 0.5);' +
+        ' vec3 m = texture2D(map, uv).rgb; c = mix(c, c * (0.55 + 0.9 * m), 0.6); }' +
+        ' float spotN = fbm(n * 5.0 + vec3(3.1, 1.7, t * 0.004));' +
+        ' float lat = abs(n.y); float belt = smoothstep(0.05, 0.18, lat) * (1.0 - smoothstep(0.45, 0.6, lat));' +
+        ' float spot = smoothstep(0.66, 0.74, spotN) * belt;' +
+        ' float pen = smoothstep(0.6, 0.66, spotN) * belt;' +
+        ' c = mix(c, c * vec3(0.55, 0.32, 0.12), pen * 0.6); c = mix(c, vec3(0.12, 0.03, 0.0), spot * 0.85);' +
+        ' float mu = max(dot(vN, vV), 0.0);' +
+        ' float limb = 0.35 + 0.65 * pow(mu, 0.55);' +
+        ' c *= limb * 1.35; c = mix(c, c * vec3(1.0, 0.7, 0.45), pow(1.0 - mu, 2.0) * 0.6);' +
+        ' float fac = smoothstep(0.7, 0.95, fine) * pow(1.0 - mu, 1.5); c += vec3(1.0, 0.8, 0.5) * fac * 0.35;' +
+        ' gl_FragColor = vec4(c, 1.0); }'
+    });
+  }
+
+  function coronaMaterial(ratio) {
+    return new THREE.ShaderMaterial({
+      uniforms: { t: { value: 0 }, ratio: { value: ratio } },
+      vertexShader: 'varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' +
+        'void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform float t; uniform float ratio; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + NOISE_GLSL + '\n' +
+        'void main(){ float mu = clamp(abs(dot(vN, vV)), 0.0, 1.0);' +
+        ' float b = sqrt(1.0 - mu * mu) * ratio;' +
+        ' if (b < 1.0) discard;' +
+        ' vec3 n = normalize(vP);' +
+        ' float streak = fbm(vec3(n.xy * 4.0 / (abs(n.z) + 0.6), t * 0.05)) ;' +
+        ' float s2 = fbm(n * 9.0 + vec3(0.0, t * 0.1, -t * 0.07));' +
+        ' float fall = exp(-(b - 1.0) * 2.6);' +
+        ' float a = fall * (0.6 + 0.9 * streak + 0.35 * s2);' +
+        ' a *= 1.0 - smoothstep(ratio * 0.7, ratio, b);' +
+        ' a *= smoothstep(1.0, 1.04, b);' +
+        ' vec3 col = mix(vec3(1.0, 0.5, 0.12), vec3(1.0, 0.9, 0.7), clamp(fall * 1.2, 0.0, 1.0));' +
+        ' gl_FragColor = vec4(col * a * 0.9, a); }',
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide
     });
   }
 
@@ -293,11 +329,11 @@ G.World = (function () {
     neptune: [0x6f9dff, 2.5, 0.9], moon_titan: [0xffb060, 2.4, 0.9]
   };
 
-  // Real photographic maps (Solar System Scope, CC BY 4.0). Procedural maps stay as instant fallback.
+  // Project-owned maps (assets/textures/tex_*). Jupiter, Saturn, Ceres and Earth clouds still use Solar System Scope (CC BY 4.0).
   const TEX_FILES = {
-    mercury: '2k_mercury.jpg', venus: '2k_venus_atmosphere.jpg', earth: '2k_earth_daymap.jpg', moon: '2k_moon.jpg',
-    mars: '2k_mars.jpg', jupiter: '2k_jupiter.jpg', saturn: '2k_saturn.jpg', uranus: '2k_uranus.jpg',
-    neptune: '2k_neptune.jpg', ceres: '2k_ceres_fictional.jpg'
+    mercury: 'tex_mercury.jpg', venus: 'tex_venus.jpg', earth: 'tex_earth_day.jpg', moon: 'tex_moon.jpg',
+    mars: 'tex_mars.jpg', jupiter: '2k_jupiter.jpg', saturn: '2k_saturn.jpg', uranus: 'tex_uranus.jpg',
+    neptune: 'tex_neptune.jpg', pluto: 'tex_pluto.jpg', ceres: '2k_ceres_fictional.jpg'
   };
   let texLoader = null;
   function loadTex(file, cb) {
@@ -336,7 +372,7 @@ G.World = (function () {
       def._canvas = t.image;
     });
     if (def.id === 'earth') {
-      loadTex('2k_earth_nightmap.jpg', function (t) {
+      loadTex('tex_earth_night.jpg', function (t) {
         mat.emissiveMap = t;
         mat.emissive.set(0xffd9a0);
         mat.emissiveIntensity = 1.25;
@@ -374,14 +410,26 @@ G.World = (function () {
     const group = new THREE.Group();
     let mesh;
     if (def.type === 'star') {
-      mesh = new THREE.Mesh(new THREE.SphereGeometry(def.radius, 64, 48), sunMaterial());
+      mesh = new THREE.Mesh(new THREE.SphereGeometry(def.radius, 96, 64), sunMaterial());
       group.add(mesh);
-      const rays = new THREE.Sprite(new THREE.SpriteMaterial({ map: raysTexture(), transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
-      rays.scale.set(def.radius * 6, def.radius * 6, 1);
+      const corona = new THREE.Mesh(new THREE.SphereGeometry(def.radius * 2.2, 64, 48), coronaMaterial(2.2));
+      group.add(corona);
+      const corona2 = { material: { uniforms: { t: { value: 0 } } } };
+      const rays = new THREE.Sprite(new THREE.SpriteMaterial({ map: raysTexture(), transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }));
+      rays.scale.set(def.radius * 7, def.radius * 7, 1);
       group.add(rays);
-      group.add(glowSprite(0xffb347, def.radius * 4, 0.4));
-      group.add(glowSprite(0xff7a20, def.radius * 8, 0.1));
-      animated.push(function (t) { mesh.material.uniforms.t.value = t; rays.material.rotation = t * 0.01; });
+      group.add(glowSprite(0xfff1c8, def.radius * 3.0, 0.55));
+      group.add(glowSprite(0xffa040, def.radius * 5.5, 0.22));
+      group.add(glowSprite(0xff6a20, def.radius * 11, 0.07));
+      animated.push(function (t) {
+        mesh.material.uniforms.t.value = t; corona.material.uniforms.t.value = t; corona2.material.uniforms.t.value = t * 0.6 + 50;
+        rays.material.rotation = t * 0.006; mesh.rotation.y = t * 0.01;
+      });
+      loadTex('tex_sun.jpg', function (tx) {
+        tx.wrapS = THREE.RepeatWrapping;
+        mesh.material.uniforms.map.value = tx;
+        mesh.material.uniforms.useMap.value = 1;
+      });
     } else {
       const tx = planetTextures(def);
       const mat = new THREE.MeshStandardMaterial({ map: tx.map, roughness: 0.95, metalness: 0 });
@@ -991,7 +1039,7 @@ G.World = (function () {
     terrainLight.visible = false;
     ambient.intensity = SPACE_AMB;
     ambient.color.setHex(0xcfe6ff);
-    if (bloomPass) bloomPass.strength = BLOOM;
+    if (bloomPass) bloomPass.strength = BLOOM * comfortK;
     setHover(false);
   }
 
@@ -1148,7 +1196,7 @@ G.World = (function () {
     terrainLight.position.set(300, 280, -200);
     ambient.intensity = st.amb || 0.45;
     ambient.color.setHex(st.sky || 0xcfe6ff);
-    if (bloomPass) bloomPass.strength = BLOOM * 0.6;
+    if (bloomPass) bloomPass.strength = BLOOM * 0.6 * comfortK;
     setHover(!!st.clouds);
     if (st.sky) {
       sky.visible = false;
@@ -1301,8 +1349,8 @@ G.World = (function () {
   }
 
   function init(canvas) {
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.25 : 1.75));
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !LOW_POWER, powerPreference: 'high-performance', precision: LOW_POWER ? 'mediump' : 'highp' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1 : 1.75));
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.setClearColor(0x010207, 1);
     const scene = new THREE.Scene();
@@ -1318,13 +1366,13 @@ G.World = (function () {
     terrainLight.visible = false;
     scene.add(terrainLight);
 
-    sky = new THREE.Mesh(new THREE.SphereGeometry(5000, 64, 32),
+    sky = new THREE.Mesh(new THREE.SphereGeometry(5000, LOW_POWER ? 32 : 64, LOW_POWER ? 16 : 32),
       new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, depthWrite: false, fog: false }));
     sky.rotation.z = 0.5;
     sky.renderOrder = -10;
     scene.add(sky);
 
-    const n = 3000, sp = new Float32Array(n * 3), sc = new Float32Array(n * 3);
+    const n = LOW_POWER ? 1600 : 3000, sp = new Float32Array(n * 3), sc = new Float32Array(n * 3);
     const rnd = U.mulberry32(42);
     for (let i = 0; i < n; i++) {
       const th = rnd() * Math.PI * 2, ph = Math.acos(2 * rnd() - 1);
@@ -1367,11 +1415,12 @@ G.World = (function () {
     scanRing.visible = false;
     scene.add(scanRing);
 
-    if (!LOW_POWER && THREE.EffectComposer && THREE.UnrealBloomPass) {
+    if (THREE.EffectComposer && THREE.UnrealBloomPass) {
       try {
         composer = new THREE.EffectComposer(renderer);
         composer.addPass(new THREE.RenderPass(scene, camera));
-        bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), BLOOM, 0.35, 0.92);
+        const div = LOW_POWER ? 4 : 2;
+        bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth / div, window.innerHeight / div), LOW_POWER ? BLOOM * 0.8 : BLOOM, 0.5, 0.94);
         composer.addPass(bloomPass);
       } catch (e) { composer = null; bloomPass = null; }
     }
@@ -1389,7 +1438,29 @@ G.World = (function () {
   W.init = init;
   W.isReady = function () { return ready; };
   W.update = update;
-  W.render = function () { if (composer) composer.render(); else W.renderer.render(W.scene, W.camera); };
+  // Adaptive resolution: trade pixels for frame rate on weaker devices.
+  const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.25 : 1.75), MIN_PR = LOW_POWER ? 0.55 : 0.85;
+  let prNow = Math.min(MAX_PR, LOW_POWER ? 1 : 1.75), frames = 0, frameT = performance.now();
+  function adaptResolution() {
+    frames++;
+    const now = performance.now(), el = now - frameT;
+    if (el < 2000) return;
+    const fps = frames * 1000 / el;
+    frames = 0; frameT = now;
+    if (document.hidden) return;
+    let next = prNow;
+    // Already at the lowest resolution and still slow: drop the bloom post-process.
+    if (fps < 34 && prNow <= MIN_PR + 0.01 && composer) { composer = null; bloomPass = null; }
+    if (fps < 45 && prNow > MIN_PR) next = Math.max(MIN_PR, prNow - 0.15);
+    else if (fps > 57 && prNow < MAX_PR) next = Math.min(MAX_PR, prNow + 0.05);
+    if (Math.abs(next - prNow) > 0.01) {
+      prNow = next;
+      W.renderer.setPixelRatio(prNow);
+      resize();
+    }
+    W.fps = Math.round(fps);
+  }
+  W.render = function () { adaptResolution(); if (composer) composer.render(); else W.renderer.render(W.scene, W.camera); };
   W.buildTerrain = buildTerrain;
   W.removeTerrain = removeTerrain;
   W.groundY = groundY;
@@ -1407,5 +1478,6 @@ G.World = (function () {
   W.glowSprite = glowSprite;
   W.mode = 'menu';
   W.lowPower = LOW_POWER;
+  W.setComfort = function (on) { comfortK = on ? 0.7 : 1; if (bloomPass) bloomPass.strength = BLOOM * comfortK; };
   return W;
 })();

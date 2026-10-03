@@ -153,6 +153,7 @@ G.HUD = (function () {
         near.site.sort(byD).slice(0, 3).forEach(function (o) { placeAnom(o.a); });
       }
     }
+    if (G.Crew) G.Crew.markers(landed).forEach(function (m) { place(m.id, m.cls, m.pos, m.name, m.r, !!m.always, null); });
     if (objPos) place('objective', 'objective', objPos, objective.label || 'Objective', objective.radius || 4, true);
     for (const k in pool) {
       if (!pool[k]._seen) { pool[k].remove(); delete pool[k]; }
@@ -290,11 +291,69 @@ G.HUD = (function () {
     });
   }
 
+  const CARD8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  let roverUi = null;
+  function updateRoverDash(info, dt, landed) {
+    if (roverUi !== landed) {
+      roverUi = landed;
+      U.el('mfd-left-title').textContent = landed ? 'ROVER DRIVE' : 'SHIP SYSTEMS';
+      U.el('hud-speed-unit').textContent = landed ? 'km/h' : 'km/s';
+      document.querySelector('#mfd-left .sys.power span').textContent = landed ? 'BATT' : 'POWER';
+    }
+    if (!landed) return;
+    const st = G.Save.get(), r = G.World.rover;
+    if (info) {
+      U.el('hud-speed').textContent = Math.round(info.speed * 2.5);
+      st.roverOdo = (st.roverOdo || 0) + info.speed * dt * 0.00069;
+    }
+    const deg = ((-G.Rover.heading() * 180 / Math.PI) % 360 + 360) % 360;
+    const pitch = r ? -r.group.rotation.x : 0;
+    U.el('rg-hdg').textContent = CARD8[Math.round(deg / 45) % 8] + ' ' + String(Math.round(deg)).padStart(3, '0') + '\u00B0';
+    U.el('rg-cards').textContent = G.Crew ? G.Crew.cardCount() : 0;
+    const dc = U.el('rover-dial'), dx = dc.getContext('2d'), D = dc.width, R = D / 2 - 4;
+    dx.clearRect(0, 0, D, D);
+    dx.fillStyle = 'rgba(0,0,0,0.4)'; dx.beginPath(); dx.arc(D / 2, D / 2, R, 0, Math.PI * 2); dx.fill();
+    dx.strokeStyle = 'rgba(255,180,60,0.7)'; dx.lineWidth = 2; dx.stroke();
+    dx.save(); dx.translate(D / 2, D / 2); dx.rotate(-deg * Math.PI / 180);
+    for (let a = 0; a < 360; a += 15) {
+      const big = a % 90 === 0, ang = a * Math.PI / 180;
+      dx.strokeStyle = big ? '#ffb43c' : 'rgba(255,180,60,0.45)'; dx.lineWidth = big ? 2.5 : 1.2;
+      dx.beginPath(); dx.moveTo(Math.sin(ang) * (R - (big ? 11 : 6)), -Math.cos(ang) * (R - (big ? 11 : 6))); dx.lineTo(Math.sin(ang) * (R - 1), -Math.cos(ang) * (R - 1)); dx.stroke();
+    }
+    dx.fillStyle = '#ff6b4a'; dx.font = 'bold 15px monospace'; dx.textAlign = 'center'; dx.textBaseline = 'middle';
+    dx.fillText('N', 0, -R + 22);
+    dx.restore();
+    dx.fillStyle = '#ffe2b0'; dx.beginPath(); dx.moveTo(D / 2, 6); dx.lineTo(D / 2 - 6, 18); dx.lineTo(D / 2 + 6, 18); dx.closePath(); dx.fill();
+    dx.font = 'bold 17px monospace'; dx.textAlign = 'center'; dx.textBaseline = 'middle';
+    dx.fillText(String(Math.round(deg)).padStart(3, '0'), D / 2, D / 2 + 4);
+    const c = U.el('rover-incl'), x = c.getContext('2d'), W = c.width, H = c.height;
+    x.clearRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(255,180,60,0.25)'; x.lineWidth = 1;
+    for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(i * W / 6, 0); x.lineTo(i * W / 6, H); x.stroke(); }
+    x.strokeStyle = 'rgba(255,180,60,0.6)';
+    x.beginPath(); x.moveTo(0, H * 0.7); x.lineTo(W, H * 0.7); x.stroke();
+    x.save(); x.translate(W / 2, H * 0.7); x.rotate(-pitch * 1.5);
+    x.fillStyle = '#ffb43c';
+    x.fillRect(-44, -26, 88, 14);
+    x.fillRect(-14, -38, 34, 12);
+    x.fillStyle = '#16120a'; x.strokeStyle = '#ffb43c'; x.lineWidth = 3;
+    [-32, 0, 32].forEach(function (wx) { x.beginPath(); x.arc(wx, -8, 9, 0, Math.PI * 2); x.fill(); x.stroke(); });
+    x.restore();
+    x.fillStyle = '#ffe2b0'; x.font = 'bold 18px monospace'; x.textAlign = 'left';
+    x.fillText('INCL', 6, 18);
+  }
+
+  let slowT = 0;
+  let mkFrame = 0;
+  const MK_LOW = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || /[?&]touch=1/.test(location.search);
   function update(dt, info, landed) {
     const from = landed ? G.Rover.position() : G.Ship.position();
-    updateMarkers(landed);
+    // Marker DOM work every other frame on touch devices.
+    if (!MK_LOW || (++mkFrame & 1) === 0) updateMarkers(landed);
     updateCompass(landed ? G.Rover.heading() : G.Ship.heading(), from);
-    updateGauges(info, from);
+    // Text gauges change slowly: refresh ~8x per second instead of every frame.
+    slowT -= dt;
+    if (slowT <= 0) { slowT = 0.12; updateGauges(info, from); updateRoverDash(info, 0.12, landed); }
     updateFeed(dt, landed, from);
     U.el('hud').classList.toggle('mode-rover', !!landed);
     U.el('btn-rover').querySelector('.action-label').textContent = landed ? 'Ship' : 'Rover';
@@ -308,42 +367,140 @@ G.HUD = (function () {
     const scr = U.el('boot-screen');
     const lines = [
       ['ORBITA OS v20.47 // EX-01 EXPLORER FLIGHT COMPUTER', ''],
+      ['bios checksum ........................... 0x2047FA', 'ok'],
       ['memory check ............................ 2047 TB', 'ok'],
+      ['mounting /dev/cockpit ................... done', 'ok'],
+      ['reactor core ............................ 100%', 'ok'],
+      ['life support ............................ stable', 'ok'],
+      ['shield matrix ........................... armed', 'ok'],
       ['loading stellar cartography ............. 12 bodies', 'ok'],
+      ['calibrating gyros + thrusters ........... nominal', 'ok'],
       ['warming fold drive coils ................ nominal', 'ok'],
-      ['initialising KORA cognitive core ........ online', 'ok'],
+      ['scanner array ........................... online', 'ok'],
+      ['rover bay ............................... ready', 'ok'],
+      ['initialising KORA cognitive core ........ waking', 'kora'],
+      ['KORA neural lattice ..................... rebuilding', 'ok'],
       ['linking to Earth Deep Space Network ..... ', 'link'],
       ['procedural sector generator ............. seeded @ HOME 00:00', 'ok'],
+      ['KORA: good to see you, Explorer', 'ok'],
+      Math.random() < 0.25 ? ['easter.egg ................................ GreenMan was here', 'ok'] : ['checking comms ............................ clear', 'ok'],
       ['ALL SYSTEMS GO', 'ok']
     ];
-    let i = 0, finished = false;
+    let i = 0, finished = false, started = false;
     function finish() {
       if (finished) return;
       finished = true;
+      G.Audio.play('bootDone');
       scr.classList.add('done');
       setTimeout(function () { scr.remove(); }, 800);
       done();
     }
-    scr.onclick = finish;
+    const prompt = document.createElement('div');
+    prompt.className = 'boot-prompt';
+    prompt.textContent = (G.Touch && G.Touch.enabled() ? 'TAP' : 'CLICK') + ' TO POWER ON';
+    log.appendChild(prompt);
+    scr.onclick = function () {
+      if (started) { finish(); return; }
+      started = true;
+      prompt.remove();
+      G.Audio.unlock();
+      G.Audio.play('powerUp');
+      setTimeout(run, 650);
+    };
     const linkP = G.Codex.ping();
-    (function next() {
-      if (finished) return;
-      if (i >= lines.length) { setTimeout(finish, 500); return; }
-      const div = document.createElement('div');
-      const l = lines[i++];
-      div.textContent = '> ' + l[0];
-      if (l[1] === 'ok') div.className = 'ok';
-      log.appendChild(div);
-      if (l[1] === 'link') {
-        linkP.then(function (okk) {
-          div.textContent += okk ? 'LIVE' : 'OFFLINE (local archive)';
-          div.className = okk ? 'ok' : 'warn';
-          U.el('menu-link').textContent = okk ? 'LIVE' : 'OFFLINE';
-          U.el('menu-link').style.color = okk ? '' : 'var(--accent)';
-          setTimeout(next, 200);
-        });
-      } else setTimeout(next, 170 + Math.random() * 120);
-    })();
+    const bc = document.querySelector('#boot-kora canvas');
+    let buildT0 = 0, koraStarted = false, koraDone = false;
+    // Pixelated bottom-to-top build-up of the live KORA hologram canvas.
+    function koraBuild(now) {
+      if (!bc || finished) return;
+      requestAnimationFrame(koraBuild);
+      const src = U.el('holo-canvas');
+      if (!src) return;
+      const p = Math.min(1, (now - buildT0) / 2600);
+      const W = bc.width, H = bc.height, x = bc.getContext('2d');
+      x.clearRect(0, 0, W, H);
+      const px = Math.max(1, Math.round(22 * Math.pow(1 - p, 1.5)));
+      const sw = Math.max(8, Math.floor(W / px)), sh = Math.max(8, Math.floor(H / px));
+      if (!koraBuild.o) koraBuild.o = document.createElement('canvas');
+      const o = koraBuild.o; o.width = sw; o.height = sh;
+      o.getContext('2d').drawImage(src, 0, 0, sw, sh);
+      x.imageSmoothingEnabled = false;
+      const front = H * (1 - p);
+      x.save();
+      x.beginPath(); x.rect(0, front, W, H - front); x.clip();
+      x.drawImage(o, 0, 0, W, H);
+      if (p < 1) {
+        x.globalCompositeOperation = 'source-atop';
+        x.fillStyle = 'rgba(56,225,255,' + (0.5 * (1 - p)).toFixed(2) + ')';
+        x.fillRect(0, 0, W, H);
+      }
+      x.restore();
+      if (p < 1) {
+        x.fillStyle = 'rgba(190,250,255,0.9)';
+        x.fillRect(0, front, W, 2);
+        x.fillStyle = 'rgba(56,225,255,0.35)';
+        for (let k = 0; k < 14; k++) x.fillRect(Math.random() * W, front - Math.random() * 18, px + 1, px + 1);
+      } else {
+        const f = 1 - Math.min(1, (now - buildT0 - 2600) / 500);
+        if (f > 0) { x.fillStyle = 'rgba(220,252,255,' + (0.5 * f).toFixed(2) + ')'; x.fillRect(0, 0, W, H); }
+      }
+    }
+    function koraWake() {
+      if (!bc) return;
+      koraStarted = true;
+      bc.parentNode.classList.add('on');
+      buildT0 = performance.now();
+      requestAnimationFrame(koraBuild);
+      if (G.Holo) G.Holo.mood('think', 2.6);
+      const nm = bc.parentNode.querySelector('.boot-kora-name'), sub = bc.parentNode.querySelector('.boot-kora-sub');
+      const hello = 'KORA online. Hello Explorer!';
+      setTimeout(function () {
+        if (finished) return;
+        nm.textContent = 'KORA // ONLINE';
+        bc.parentNode.classList.add('awake');
+        G.Audio.play('menuIn');
+        if (G.Holo) { G.Holo.mood('happy', 4); G.Holo.wave(); G.Holo.speak(hello); }
+        sub.textContent = '"' + hello + '"';
+        G.Audio.speak(hello, 1, function () { koraDone = true; });
+        setTimeout(function () { koraDone = true; }, 7000);
+      }, 2700);
+    }
+    function run() {
+      (function next() {
+        if (finished) return;
+        if (i >= lines.length) { (function w() { if (koraDone || !koraStarted) setTimeout(finish, 500); else setTimeout(w, 150); })(); return; }
+        const div = document.createElement('div');
+        const l = lines[i++];
+        const full = '> ' + l[0];
+        div.textContent = '';
+        if (l[1] === 'ok') div.className = 'ok';
+        log.appendChild(div);
+        let c = 0;
+        const typer = setInterval(function () {
+          if (finished) { clearInterval(typer); return; }
+          const step = 2 + (Math.random() < 0.5 ? 1 : 0);
+          c = Math.min(full.length, c + step);
+          div.textContent = full.slice(0, c);
+          G.Audio.play('bootTick');
+          if (c >= full.length) { clearInterval(typer); afterLine(); }
+        }, 9);
+        function afterLine() {
+        if (l[1] === 'kora') { div.className = 'ok'; koraWake(); }
+        G.Audio.play(l[1] === 'link' ? 'bootTick' : 'bootOk');
+        if (l[1] === 'link') {
+          linkP.then(function (okk) {
+            div.textContent += okk ? 'LIVE' : 'OFFLINE (local archive)';
+            div.className = okk ? 'ok' : 'warn';
+            G.Audio.play(okk ? 'bootOk' : 'bootWarn');
+            U.el('menu-link').textContent = okk ? 'LIVE' : 'OFFLINE';
+            if (U.el('menu-link2')) { U.el('menu-link2').textContent = okk ? 'DSN LIVE' : 'OFFLINE'; U.el('menu-link2').className = okk ? 'live' : 'off'; }
+            U.el('menu-link').style.color = okk ? '' : 'var(--accent)';
+            setTimeout(next, 200);
+          });
+        } else setTimeout(next, 15 + Math.random() * 25);
+        }
+      })();
+    }
   }
 
   function fillTicker() {
