@@ -73,7 +73,7 @@ G.Holo = (function () {
     el.appendChild(span); el.appendChild(caret);
     typeTimer = setInterval(function () {
       i += 2;
-      if (i % 6 === 0) G.Audio.play('blip');
+      if (i % 8 === 0 && !(window.speechSynthesis && window.speechSynthesis.speaking)) G.Audio.play('blip');
       span.textContent = body.slice(0, i);
       if (i >= body.length) { clearInterval(typeTimer); setTimeout(function () { if (caret.parentNode) caret.remove(); }, 1500); }
     }, 22);

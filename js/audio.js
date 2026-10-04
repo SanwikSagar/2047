@@ -15,13 +15,13 @@ G.Audio = (function () {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
+      try { ctx = new AC({ latencyHint: MOBILE ? 'playback' : 'interactive' }); } catch (e) { ctx = new AC(); }
       comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = MOBILE ? -20 : -14; comp.knee.value = 12; comp.ratio.value = MOBILE ? 6 : 4; comp.attack.value = 0.004; comp.release.value = 0.2;
+      comp.threshold.value = MOBILE ? -18 : -14; comp.knee.value = 18; comp.ratio.value = MOBILE ? 3 : 4; comp.attack.value = 0.01; comp.release.value = 0.25;
       comp.connect(ctx.destination);
-      masterGain = ctx.createGain(); masterGain.gain.value = MOBILE ? 1.7 : 1; masterGain.connect(comp);
-      reverb = ctx.createConvolver(); reverb.buffer = impulse(MOBILE ? 1.0 : 2.6, 2.4);
-      reverbSend = ctx.createGain(); reverbSend.gain.value = MOBILE ? 0.35 : 0.5;
+      masterGain = ctx.createGain(); masterGain.gain.value = MOBILE ? 1.12 : 1; masterGain.connect(comp);
+      reverb = ctx.createConvolver(); reverb.buffer = impulse(MOBILE ? 0.4 : 2.2, MOBILE ? 3.2 : 2.4, MOBILE ? 1 : 2);
+      reverbSend = ctx.createGain(); reverbSend.gain.value = MOBILE ? 0.16 : 0.45;
       reverbSend.connect(reverb); reverb.connect(masterGain);
       musicGain = ctx.createGain(); musicGain.connect(masterGain);
       const mSend = ctx.createGain(); mSend.gain.value = 0.7; musicGain.connect(mSend); mSend.connect(reverb);
@@ -39,9 +39,10 @@ G.Audio = (function () {
     try { const p = ctx.resume(); if (p && p.catch) p.catch(function () { }); } catch (e) { }
   }
 
-  function impulse(sec, decay) {
-    const len = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, len, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) {
+  function impulse(sec, decay, ch) {
+    ch = ch || 2;
+    const len = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(ch, len, ctx.sampleRate);
+    for (let c = 0; c < ch; c++) {
       const d = b.getChannelData(c);
       for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
     }
@@ -58,19 +59,21 @@ G.Audio = (function () {
     return noiseBuf;
   }
 
+  let duckK = 1;
   function applyVolumes() {
     if (!ctx) return;
-    musicGain.gain.value = settings.music * 0.32;
-    sfxGain.gain.value = settings.sfx * 0.9;
-    ambGain.gain.value = settings.sfx * 0.55;
+    const t = ctx.currentTime;
+    musicGain.gain.setTargetAtTime(settings.music * 0.32 * duckK, t, 0.06);
+    sfxGain.gain.setTargetAtTime(settings.sfx * 0.9 * duckK, t, 0.04);
+    ambGain.gain.setTargetAtTime(settings.sfx * 0.55 * duckK, t, 0.06);
   }
+  function setDuck(on) { duckK = on ? 0.3 : 1; applyVolumes(); }
 
   // One shaped note. o: {f, f2, type, dur, vol, a (attack), delay, cut (lowpass), q, pan, rev, out}
   function note(o) {
     if (!ensureCtx()) return;
-    if (MOBILE && o.f < 220 && !o.noHarm && o.out !== musicGain) {
-      note(Object.assign({}, o, { f: o.f * 2, f2: o.f2 ? o.f2 * 2 : 0, vol: (o.vol || 0.2) * 0.55, noHarm: true, cut: o.cut ? o.cut * 2 : 0 }));
-      note(Object.assign({}, o, { f: o.f * 3, f2: o.f2 ? o.f2 * 3 : 0, vol: (o.vol || 0.2) * 0.3, noHarm: true, cut: o.cut ? o.cut * 3 : 0 }));
+    if (MOBILE && o.f < 180 && !o.noHarm && o.out !== musicGain && (o.vol || 0.2) > 0.05) {
+      note(Object.assign({}, o, { f: o.f * 2, f2: o.f2 ? o.f2 * 2 : 0, vol: (o.vol || 0.2) * 0.4, noHarm: true, cut: o.cut ? Math.min(o.cut * 2, 4000) : 0 }));
     }
     const t0 = ctx.currentTime + (o.delay || 0), dur = o.dur || 0.2;
     const osc = ctx.createOscillator(), g = ctx.createGain();
@@ -224,10 +227,19 @@ G.Audio = (function () {
   }
 
   // Called every frame by the game. kind: 'ship' | 'rover' | null (menu / paused)
+  let engineAcc = 0;
   function engine(kind, level, boost, dt) {
     if (!ctx || ctx.state !== 'running') return;
     if (!loops) loops = makeLoops();
     const t = ctx.currentTime, L = loops, lv = Math.min(1, Math.abs(level || 0));
+    engineAcc += dt || 0;
+    if (engineAcc < 0.08 && L.ready) {
+      if (boost && !L.wasBoost && kind === 'ship') play('boost');
+      L.wasBoost = boost && kind === 'ship';
+      return;
+    }
+    engineAcc = 0;
+    L.ready = true;
     const ship = kind === 'ship', rover = kind === 'rover', M = MOBILE ? 2.2 : 1;
     L.engGain.gain.setTargetAtTime(ship ? 0.05 + lv * (boost ? 0.28 : 0.16) : 0, t, 0.15);
     L.engF.frequency.setTargetAtTime((200 + lv * (boost ? 1400 : 700)) * M, t, 0.2);
@@ -243,7 +255,7 @@ G.Audio = (function () {
     L.airG.gain.setTargetAtTime(kind ? 0.012 : 0, t, 0.5);
     if (boost && !L.wasBoost && ship) play('boost');
     L.wasBoost = boost && ship;
-    if (kind && dt) {
+    if (kind && dt && !MOBILE) {
       L.chirpT -= dt;
       if (L.chirpT <= 0) {
         L.chirpT = 5 + Math.random() * 9;
@@ -351,14 +363,15 @@ G.Audio = (function () {
       if (female) s -= 60;
       for (let i = 0; i < PREFERRED.length; i++) if (PREFERRED[i].test(n)) { s += 40 - i * 3; break; }
       if (/en[-_]gb/i.test(v.lang)) s += 4; else if (/en[-_]in/i.test(v.lang)) s += 2;
-      if (/natural|neural|online|enhanced|premium/i.test(n)) s += 6;
-      if (v.localService) s += 2;
+      if (/natural|neural|online|enhanced|premium/i.test(n)) s += MOBILE ? -24 : 6;
+      if (v.localService) s += MOBILE ? 30 : 2;
       return s;
     };
     vs.sort(function (a, b) { return score(b) - score(a); });
     voice = vs[0];
     // No male voice installed: deepen the default one.
-    voicePitch = score(voice) >= 30 ? 0.88 : 0.62;
+    voicePitch = score(voice) >= 30 ? 0.88 : (MOBILE ? 0.86 : 0.62);
+    if (MOBILE) voicePitch = Math.max(0.86, voicePitch);
     voiceListeners.forEach(function (f) { f(); });
   }
   if (window.speechSynthesis) {
@@ -376,28 +389,37 @@ G.Audio = (function () {
     // Chrome cuts long utterances; speak sentence chunks in sequence.
     const parts = String(text).replace(/\s+/g, ' ').match(/[^.!?]+[.!?]*\s*/g) || [text];
     const chunks = [];
+    const limit = MOBILE ? 90 : 180;
     parts.forEach(function (p) {
       const last = chunks[chunks.length - 1];
-      if (last && last.length + p.length < 180) chunks[chunks.length - 1] = last + p; else chunks.push(p);
+      if (last && last.length + p.length < limit) chunks[chunks.length - 1] = last + p; else chunks.push(p);
     });
-    let i = 0;
+    let i = 0, watch = null, token = 0;
+    setDuck(true);
     function next() {
+      if (watch) { clearTimeout(watch); watch = null; }
       if (id !== speakId) return;
-      if (i >= chunks.length) { if (onend) onend(); return; }
-      const u = new SpeechSynthesisUtterance(chunks[i++].trim());
+      const my = ++token;
+      if (i >= chunks.length) { setDuck(false); if (onend) onend(); return; }
+      const piece = chunks[i++].trim();
+      if (!piece) { next(); return; }
+      const u = new SpeechSynthesisUtterance(piece);
       if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-GB';
-      u.rate = 0.98;
+      u.rate = MOBILE ? 0.96 : 0.98;
       u.pitch = voicePitch;
       u.volume = Math.max(0.6, settings.sfx);
-      u.onend = next;
-      u.onerror = next;
+      function done() { if (my === token && id === speakId) next(); }
+      u.onend = done;
+      u.onerror = done;
       window.speechSynthesis.speak(u);
+      watch = setTimeout(done, Math.min(9000, 800 + piece.length * 70));
     }
-    setTimeout(next, 60);
+    setTimeout(next, MOBILE ? 180 : 70);
   }
 
   function stopSpeak() {
     speakId++;
+    setDuck(false);
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
@@ -440,7 +462,8 @@ G.Audio = (function () {
     }
     if (window.speechSynthesis) {
       const u = new SpeechSynthesisUtterance(' ');
-      u.volume = 0;
+      u.volume = 0.02;
+      u.rate = 1.4;
       window.speechSynthesis.speak(u);
     }
   }

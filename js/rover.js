@@ -88,14 +88,15 @@ G.Rover = (function () {
     if (Math.abs(newY - curY) < 2.5 && Math.hypot(nx, nz) < 760) {
       group.position.x = nx;
       group.position.z = nz;
-      group.position.y = U.lerp(curY, newY, Math.min(1, dt * 8));
+      group.position.y = U.lerp(curY, newY, Math.min(1, dt * 14));
     } else {
       rover.speed *= -0.3;
     }
 
     const ahead = G.World.groundY(nx + Math.sin(rover.heading) * 1.5, nz + Math.cos(rover.heading) * 1.5);
-    const tilt = Math.atan2(ahead - newY, 1.5);
-    group.rotation.set(-tilt * 0.8, rover.heading, 0, 'YXZ');
+    const tiltTarget = Math.atan2(ahead - newY, 1.5);
+    rover.tilt = U.lerp(rover.tilt || 0, tiltTarget, Math.min(1, dt * 8));
+    group.rotation.set(-rover.tilt * 0.8, rover.heading, 0, 'YXZ');
     wheelSpin += rover.speed * dt * 2;
     group.children.forEach(function (c) { if (c.name === 'wheel') c.rotation.x = wheelSpin; });
 
@@ -107,7 +108,7 @@ G.Rover = (function () {
       group.position.y + 2.55 + Math.sin(bob * 3) * 0.04 * Math.min(1, Math.abs(rover.speed) / 5),
       group.position.z + fwdZ * 0.9
     );
-    cam.rotation.set(lookPitch - tilt * 0.6, rover.heading + Math.PI + lookYaw, 0, 'YXZ');
+    cam.rotation.set(lookPitch - rover.tilt * 0.6, rover.heading + Math.PI + lookYaw, 0, 'YXZ');
     if (Math.abs(cam.fov - 72) > 0.05) { cam.fov = 72; cam.updateProjectionMatrix(); }
 
     const near = G.World.nearestPOI(group.position, 20);

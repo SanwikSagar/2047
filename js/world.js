@@ -39,17 +39,24 @@ G.World = (function () {
     'float fbm(vec3 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }'
   ].join('\n');
 
+  // Logarithmic depth needs these chunks in every hand-written shader, or those meshes
+  // fight the planets and the silhouette crawls.
+  const VERT_HEAD = '#include <logdepthbuf_pars_vertex>\n';
+  const VERT_TAIL = '\n#include <logdepthbuf_vertex>\n';
+  const FRAG_HEAD = '#include <logdepthbuf_pars_fragment>\n';
+  const FRAG_TAIL = '\n#include <logdepthbuf_fragment>\n';
+
   function sunMaterial() {
     return new THREE.ShaderMaterial({
       uniforms: { t: { value: 0 }, map: { value: null }, useMap: { value: 0 } },
-      vertexShader: 'varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' +
-        'void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'uniform float t; uniform sampler2D map; uniform float useMap; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + NOISE_GLSL + '\n' +
+      vertexShader: 'varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + VERT_HEAD +
+        'void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv;' + VERT_TAIL + '}',
+      fragmentShader: 'uniform float t; uniform sampler2D map; uniform float useMap; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + FRAG_HEAD + NOISE_GLSL + '\n' +
         'void main(){ vec3 n = normalize(vP);' +
-        ' float big = fbm(n * 2.2 + vec3(t * 0.015, 0.0, t * 0.01));' +
-        ' float gran = 1.0 - abs(noise(n * 38.0 + vec3(t * 0.25, -t * 0.18, t * 0.21)) * 2.0 - 1.0);' +
+        ' float big = fbm(n * 2.2 + vec3(t * 0.004, 0.0, t * 0.0025));' +
+        ' float gran = 1.0 - abs(noise(n * 18.0 + vec3(t * 0.012, -t * 0.008, t * 0.01)) * 2.0 - 1.0);' +
         ' gran = pow(gran, 2.5);' +
-        ' float fine = fbm(n * 14.0 - vec3(0.0, t * 0.06, t * 0.04));' +
+        ' float fine = fbm(n * 8.0 - vec3(0.0, t * 0.006, t * 0.004));' +
         ' float heat = 0.55 + 0.25 * big + 0.22 * gran + 0.12 * fine;' +
         ' vec3 c = mix(vec3(0.95, 0.32, 0.03), vec3(1.0, 0.86, 0.45), smoothstep(0.45, 0.95, heat));' +
         ' c = mix(c, vec3(1.0, 0.98, 0.85), smoothstep(0.88, 1.05, heat) * 0.6);' +
@@ -64,28 +71,28 @@ G.World = (function () {
         ' float limb = 0.35 + 0.65 * pow(mu, 0.55);' +
         ' c *= limb * 1.35; c = mix(c, c * vec3(1.0, 0.7, 0.45), pow(1.0 - mu, 2.0) * 0.6);' +
         ' float fac = smoothstep(0.7, 0.95, fine) * pow(1.0 - mu, 1.5); c += vec3(1.0, 0.8, 0.5) * fac * 0.35;' +
-        ' gl_FragColor = vec4(c, 1.0); }'
+        ' gl_FragColor = vec4(c, 1.0);' + FRAG_TAIL + '}'
     });
   }
 
   function coronaMaterial(ratio) {
     return new THREE.ShaderMaterial({
       uniforms: { t: { value: 0 }, ratio: { value: ratio } },
-      vertexShader: 'varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' +
-        'void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'uniform float t; uniform float ratio; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + NOISE_GLSL + '\n' +
+      vertexShader: 'varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + VERT_HEAD +
+        'void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv;' + VERT_TAIL + '}',
+      fragmentShader: 'uniform float t; uniform float ratio; varying vec3 vP; varying vec3 vN; varying vec3 vV;\n' + FRAG_HEAD + NOISE_GLSL + '\n' +
         'void main(){ float mu = clamp(abs(dot(vN, vV)), 0.0, 1.0);' +
         ' float b = sqrt(1.0 - mu * mu) * ratio;' +
         ' if (b < 1.0) discard;' +
         ' vec3 n = normalize(vP);' +
-        ' float streak = fbm(vec3(n.xy * 4.0 / (abs(n.z) + 0.6), t * 0.05)) ;' +
-        ' float s2 = fbm(n * 9.0 + vec3(0.0, t * 0.1, -t * 0.07));' +
+        ' float streak = fbm(vec3(n.xy * 4.0 / (abs(n.z) + 0.6), t * 0.012)) ;' +
+        ' float s2 = fbm(n * 6.0 + vec3(0.0, t * 0.018, -t * 0.012));' +
         ' float fall = exp(-(b - 1.0) * 2.6);' +
         ' float a = fall * (0.6 + 0.9 * streak + 0.35 * s2);' +
         ' a *= 1.0 - smoothstep(ratio * 0.7, ratio, b);' +
         ' a *= smoothstep(1.0, 1.04, b);' +
         ' vec3 col = mix(vec3(1.0, 0.5, 0.12), vec3(1.0, 0.9, 0.7), clamp(fall * 1.2, 0.0, 1.0));' +
-        ' gl_FragColor = vec4(col * a * 0.9, a); }',
+        ' gl_FragColor = vec4(col * a * 0.9, a);' + FRAG_TAIL + '}',
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide
     });
   }
@@ -93,12 +100,13 @@ G.World = (function () {
   function atmosphere(radius, color, power, strength) {
     const mat = new THREE.ShaderMaterial({
       uniforms: { color: { value: new THREE.Color(color) }, power: { value: power }, strength: { value: strength } },
-      vertexShader: 'varying vec3 vN; varying vec3 vV; varying vec3 vW;\n' +
+      vertexShader: 'varying vec3 vN; varying vec3 vV; varying vec3 vW;\n' + VERT_HEAD +
         'void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);' +
-        ' vW = normalize((modelMatrix * vec4(position, 1.0)).xyz - (modelMatrix * vec4(0.0,0.0,0.0,1.0)).xyz); gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'uniform vec3 color; uniform float power; uniform float strength; varying vec3 vN; varying vec3 vV; varying vec3 vW;\n' +
-        'void main(){ float r = 1.0 - max(dot(vN, vV), 0.0); float i = pow(r, power) * strength; gl_FragColor = vec4(color * i, i); }',
-      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+        ' vW = normalize((modelMatrix * vec4(position, 1.0)).xyz - (modelMatrix * vec4(0.0,0.0,0.0,1.0)).xyz); gl_Position = projectionMatrix * mv;' + VERT_TAIL + '}',
+      fragmentShader: 'uniform vec3 color; uniform float power; uniform float strength; varying vec3 vN; varying vec3 vV; varying vec3 vW;\n' + FRAG_HEAD +
+        'void main(){ float r = 1.0 - max(dot(vN, vV), 0.0); float i = pow(r, power) * strength; gl_FragColor = vec4(color * i, i);' + FRAG_TAIL + '}',
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
     });
     return new THREE.Mesh(new THREE.SphereGeometry(radius * 1.07, 48, 32), mat);
   }
@@ -195,8 +203,8 @@ G.World = (function () {
     g.putImageData(img, 0, 0);
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(60, 60);
-    t.anisotropy = 8;
+    t.repeat.set(48, 48);
+    t.anisotropy = 2;
     return t;
   }
 
@@ -338,7 +346,13 @@ G.World = (function () {
   let texLoader = null;
   function loadTex(file, cb) {
     if (!texLoader) texLoader = new THREE.TextureLoader();
-    texLoader.load('assets/textures/' + file, function (t) { t.anisotropy = 4; cb(t); }, undefined, function () { });
+    texLoader.load('assets/textures/' + file, function (t) {
+      t.anisotropy = Math.min(4, W.renderer ? W.renderer.capabilities.getMaxAnisotropy() : 4);
+      t.generateMipmaps = true;
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.magFilter = THREE.LinearFilter;
+      cb(t);
+    }, undefined, function () { });
   }
 
   function oceanRoughness(img) {
@@ -360,15 +374,17 @@ G.World = (function () {
     if (!file) return;
     const mat = mesh.material;
     loadTex(file, function (t) {
+      const prev = mat.map;
       mat.map = t;
+      // A colour photo used as a bump map turns JPEG blocks into moving relief.
+      mat.bumpMap = null;
+      mat.bumpScale = 0;
       mat.color.set(0xffffff);
       if (def.id === 'earth') {
-        mat.bumpMap = null;
         try { mat.roughnessMap = oceanRoughness(t.image); mat.roughness = 1; mat.metalness = 0.08; } catch (e) { }
-      } else if (mat.bumpMap) {
-        mat.bumpMap = t; mat.bumpScale = def.type === 'moon' ? 0.6 : 0.4;
       }
       mat.needsUpdate = true;
+      if (prev && prev !== t) prev.dispose();
       def._canvas = t.image;
     });
     if (def.id === 'earth') {
@@ -432,17 +448,16 @@ G.World = (function () {
       });
     } else {
       const tx = planetTextures(def);
-      const mat = new THREE.MeshStandardMaterial({ map: tx.map, roughness: 0.95, metalness: 0 });
+      const mat = new THREE.MeshStandardMaterial({ map: tx.map, roughness: 0.92, metalness: 0 });
       if (tx.rough) { mat.roughnessMap = tx.rough; mat.roughness = 1; mat.metalness = 0.05; }
-      if (def.type !== 'gas giant' && def.type !== 'ice giant') { mat.bumpMap = tx.map; mat.bumpScale = 0.35; }
       mesh = new THREE.Mesh(new THREE.SphereGeometry(def.radius, 64, 48), mat);
       group.add(mesh);
       def._canvas = tx.canvas;
       const at = ATMOS[def.id];
       if (at) group.add(atmosphere(def.radius, at[0], at[1], at[2]));
       if (def.id === 'earth') {
-        const clouds = new THREE.Mesh(new THREE.SphereGeometry(def.radius * 1.012, 64, 48),
-          new THREE.MeshStandardMaterial({ map: cloudTexture(def.seed + 99), transparent: true, depthWrite: false, roughness: 1 }));
+        const clouds = new THREE.Mesh(new THREE.SphereGeometry(def.radius * 1.02, LOW_POWER ? 40 : 64, LOW_POWER ? 28 : 48),
+          new THREE.MeshStandardMaterial({ map: cloudTexture(def.seed + 99), transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
         group.add(clouds);
         group.userData.clouds = clouds;
         animated.push(function (t, dt) { clouds.rotation.y += dt * 0.012; });
@@ -634,7 +649,7 @@ G.World = (function () {
     for (let i = 0; i < orderedBodies.length; i++) {
       const b = orderedBodies[i];
       placeBody(b, dt);
-      b.mesh.rotation.y += dt * (b.def.type === 'gas giant' ? 0.1 : 0.03);
+      if (b.def.type !== 'star') b.mesh.rotation.y += dt * (b.def.type === 'gas giant' ? 0.035 : 0.008);
     }
     for (let i = 0; i < orderedStations.length; i++) {
       const s = orderedStations[i], def = s.def;
@@ -1100,7 +1115,7 @@ G.World = (function () {
     geo.computeVertexNormals();
     const grain = grainTexture(def.seed + 31);
     terrainGroup.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-      vertexColors: true, map: st.clouds ? null : grain, bumpMap: st.clouds ? null : grain, bumpScale: 0.2, roughness: 1, metalness: 0
+      vertexColors: true, map: st.clouds ? null : grain, roughness: 1, metalness: 0
     })));
 
     if (st.water && !st.clouds) {
@@ -1219,8 +1234,12 @@ G.World = (function () {
       if (a.spin) a.spin.rotation.z += dt * 0.25;
       if (a.bob) a.bob.position.y = Math.sin(W.time * 0.8 + i) * 0.6;
       if (a.flash) a.flash.material.opacity = Math.random() < 0.02 ? 0.9 : a.flash.material.opacity * 0.85;
-      if (a.plume) { const s = 9 + Math.sin(W.time * 1.5 + i) * 1.5; a.plume.scale.set(s, s, 1); }
-      if (a.geyser) a.geyser.scale.set(5 + Math.sin(W.time * 3 + i), 16 + Math.sin(W.time * 2.2 + i) * 4, 1);
+      if (a.plume) { const s = 8.5 + Math.sin(W.time * 0.7 + i) * 0.45; a.plume.scale.set(s, s, 1); }
+      if (a.geyser) {
+        const p = 0.5 + 0.5 * Math.sin(W.time * 1.2 + i);
+        a.geyser.scale.set(4.4 + p * 0.5, 15 + p * 1.2, 1);
+        a.geyser.material.opacity = 0.4 + p * 0.2;
+      }
     }
   }
 
@@ -1360,12 +1379,17 @@ G.World = (function () {
   }
 
   function init(canvas) {
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: (window.devicePixelRatio || 1) <= 1.5 || !LOW_POWER, powerPreference: 'high-performance', precision: LOW_POWER ? 'mediump' : 'highp' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 2 : 1.75));
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: false,
+      powerPreference: 'high-performance',
+      precision: 'highp'
+    });
+    renderer.setPixelRatio(prNow);
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.setClearColor(0x010207, 1);
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 20000);
+    const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.25, 20000);
     camera.position.set(240, 30, 90);
     W.renderer = renderer; W.scene = scene; W.camera = camera;
 
@@ -1428,17 +1452,11 @@ G.World = (function () {
 
     if (THREE.EffectComposer && THREE.UnrealBloomPass) {
       try {
-        // Multisampled target keeps edges smooth on the post-process path (WebGL2 only).
-        let rt;
-        if (renderer.capabilities.isWebGL2 && THREE.WebGLMultisampleRenderTarget) {
-          const pr = renderer.getPixelRatio();
-          rt = new THREE.WebGLMultisampleRenderTarget(window.innerWidth * pr, window.innerHeight * pr, { format: THREE.RGBAFormat });
-          rt.samples = LOW_POWER ? 2 : 4;
-        }
-        composer = new THREE.EffectComposer(renderer, rt);
+        // A multisampled composer target fights bloom and makes edges crawl.
+        composer = new THREE.EffectComposer(renderer);
         composer.addPass(new THREE.RenderPass(scene, camera));
-        const div = LOW_POWER ? 4 : 2;
-        bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth / div, window.innerHeight / div), LOW_POWER ? BLOOM * 0.8 : BLOOM, 0.5, 0.94);
+        const div = LOW_POWER ? 3 : 2;
+        bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth / div, window.innerHeight / div), BLOOM, 0.4, 0.88);
         composer.addPass(bloomPass);
       } catch (e) { composer = null; bloomPass = null; }
     }
@@ -1459,30 +1477,52 @@ G.World = (function () {
   W.init = init;
   W.isReady = function () { return ready; };
   W.update = update;
-  // Adaptive resolution: trade pixels for frame rate on weaker devices.
-  // Adaptive resolution: stays sharp (never below ~0.9 of CSS pixels unless the device truly struggles).
-  const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 2 : 1.75), MIN_PR = LOW_POWER ? 0.85 : 0.85;
-  let prNow = MAX_PR, frames = 0, frameT = performance.now();
+  // Hold a stable pixel ratio. Stepping it every couple of seconds makes every edge crawl.
+  const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 1.75);
+  const MIN_PR = 1;
+  let prNow = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.25 : 1.5);
+  let frames = 0, frameT = performance.now(), badWindows = 0, goodWindows = 0;
   function adaptResolution() {
     frames++;
     const now = performance.now(), el = now - frameT;
-    if (el < 2000) return;
+    if (el < 2500) return;
     const fps = frames * 1000 / el;
     frames = 0; frameT = now;
+    W.fps = Math.round(fps);
     if (document.hidden) return;
+    if (fps < 38) { badWindows++; goodWindows = 0; }
+    else if (fps > 57) { goodWindows++; badWindows = 0; }
+    else { badWindows = 0; goodWindows = 0; }
+    if (fps < 32 && prNow <= MIN_PR + 0.01 && composer && badWindows >= 2) { composer = null; bloomPass = null; }
     let next = prNow;
-    // Already at the lowest resolution and still slow: drop the bloom post-process.
-    if (fps < 34 && prNow <= MIN_PR + 0.01 && composer) { composer = null; bloomPass = null; }
-    if (fps < 42 && prNow > MIN_PR) next = Math.max(MIN_PR, prNow - 0.1);
-    else if (fps > 56 && prNow < MAX_PR) next = Math.min(MAX_PR, prNow + 0.1);
+    if (badWindows >= 2 && prNow > MIN_PR) next = Math.max(MIN_PR, prNow - 0.25);
+    else if (goodWindows >= 3 && prNow < MAX_PR) next = Math.min(MAX_PR, prNow + 0.25);
     if (Math.abs(next - prNow) > 0.01) {
       prNow = next;
+      badWindows = 0; goodWindows = 0;
       W.renderer.setPixelRatio(prNow);
       resize();
     }
-    W.fps = Math.round(fps);
   }
-  W.render = function () { adaptResolution(); if (composer) composer.render(); else W.renderer.render(W.scene, W.camera); };
+  // Keep the depth range tight enough that atmosphere shells and rings stop flickering,
+  // while the sky (radius 5000) and the outer system stay inside the far plane.
+  function fitClip() {
+    const cam = W.camera;
+    if (!cam) return;
+    let near, far;
+    if (W.terrainBody) { near = 0.12; far = 2600; }
+    else {
+      const d = cam.position.length();
+      far = Math.max(9000, d + 2500);
+      near = Math.max(0.22, Math.min(1.4, far / 7000));
+    }
+    if (Math.abs(cam.near - near) > 0.03 || Math.abs(cam.far - far) > 50) {
+      cam.near = near;
+      cam.far = far;
+      cam.updateProjectionMatrix();
+    }
+  }
+  W.render = function () { fitClip(); adaptResolution(); if (composer) composer.render(); else W.renderer.render(W.scene, W.camera); };
   W.buildTerrain = buildTerrain;
   W.removeTerrain = removeTerrain;
   W.groundY = groundY;

@@ -55,32 +55,22 @@ G.Ship = (function () {
     });
     window.addEventListener('keyup', function (e) { keys[e.code] = false; });
     window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; });
-    canvas.addEventListener('mousedown', function (e) {
-      if (!active) return;
-      dragging = true; lastX = e.clientX; lastY = e.clientY;
+    canvas.addEventListener('pointerdown', function (e) {
+      if (!active || e.button > 0) return;
+      dragging = true;
+      lastX = e.clientX; lastY = e.clientY;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
     });
-    window.addEventListener('mouseup', function () { dragging = false; });
-    window.addEventListener('mousemove', function (e) {
+    function endLook() { dragging = false; }
+    canvas.addEventListener('pointerup', endLook);
+    canvas.addEventListener('pointercancel', endLook);
+    canvas.addEventListener('pointermove', function (e) {
       if (!active || !dragging) return;
-      yaw -= (e.clientX - lastX) * 0.0032;
-      pitch = U.clamp(pitch - (e.clientY - lastY) * 0.0028, -1.35, 1.35);
+      const touch = e.pointerType === 'touch';
+      yaw -= (e.clientX - lastX) * (touch ? 0.0052 : 0.0038);
+      pitch = U.clamp(pitch - (e.clientY - lastY) * (touch ? 0.0042 : 0.0032), -1.35, 1.35);
       lastX = e.clientX; lastY = e.clientY;
     });
-    canvas.addEventListener('touchstart', function (e) {
-      e.preventDefault();
-      if (!active) return;
-      dragging = true;
-      lastX = e.targetTouches[0].clientX; lastY = e.targetTouches[0].clientY;
-    });
-    canvas.addEventListener('touchend', function () { dragging = false; });
-    canvas.addEventListener('touchmove', function (e) {
-      if (!active || !dragging || !e.targetTouches.length) return;
-      e.preventDefault();
-      const tt = e.targetTouches[0];
-      yaw -= (tt.clientX - lastX) * 0.004;
-      pitch = U.clamp(pitch - (tt.clientY - lastY) * 0.0035, -1.35, 1.35);
-      lastX = tt.clientX; lastY = tt.clientY;
-    }, { passive: false });
   }
 
   function activate() {
@@ -146,12 +136,12 @@ G.Ship = (function () {
       }
       if (k('ArrowUp')) pitchIn += 1;
       if (k('ArrowDown')) pitchIn -= 1;
-      yaw += yawIn * dt * 1.2;
-      pitch = U.clamp(pitch + pitchIn * dt * 0.9, -1.35, 1.35);
+      yaw += yawIn * dt * 1.75;
+      pitch = U.clamp(pitch + pitchIn * dt * 1.2, -1.35, 1.35);
     }
     if (jump && active) { target = 1; boosting = true; }
-    throttle = U.lerp(throttle, target * (boosting && target > 0 ? 1 : 0.7), Math.min(1, dt * 4));
-    roll = U.lerp(roll, yawIn * 0.12, Math.min(1, dt * 3));
+    throttle = U.lerp(throttle, target * (boosting && target > 0 ? 1 : 0.72), Math.min(1, dt * 8));
+    roll = U.lerp(roll, yawIn * 0.1, Math.min(1, dt * 5));
     euler.set(pitch, yaw, roll);
     group.quaternion.setFromEuler(euler);
 
@@ -163,7 +153,7 @@ G.Ship = (function () {
     if (active && (keys['KeyF'] || touchStates.f)) { ship.velocity.addScaledVector(upv, -16 * dt); thrusting = true; }
     if (active && (keys['Space'] || touchStates.space)) ship.velocity.multiplyScalar(Math.max(0, 1 - dt * 3));
 
-    ship.velocity.multiplyScalar(Math.max(0, 1 - dt * 0.45));
+    ship.velocity.multiplyScalar(Math.max(0, 1 - dt * 0.28));
     const maxSpeed = jump ? JUMP_SPEED + 50 : (boosting ? 120 : 48);
     if (ship.velocity.length() > maxSpeed) ship.velocity.setLength(U.lerp(ship.velocity.length(), maxSpeed, Math.min(1, dt * 2)));
     if (jump) {
@@ -178,8 +168,10 @@ G.Ship = (function () {
     collide(group.position, ship.velocity);
 
     const speed = ship.velocity.length();
+    const flickT = performance.now() * 0.001;
     for (let i = 0; i < ship.flames.length; i++) {
-      ship.flames[i].scale.set(1, 1, (0.6 + Math.abs(throttle) * 1.4) * (0.9 + Math.random() * 0.2));
+      const flick = 0.94 + 0.06 * Math.sin(flickT * 17 + i * 2.2);
+      ship.flames[i].scale.set(1, 1, (0.55 + Math.abs(throttle) * 1.45) * flick);
       ship.flames[i].visible = Math.abs(throttle) > 0.05;
     }
 
@@ -195,8 +187,11 @@ G.Ship = (function () {
     if (active) {
       const cam = G.World.camera;
       cam.position.copy(group.position).addScaledVector(upv, 0.55);
-      const shake = boosting ? speed * 0.0009 : 0;
-      if (shake) cam.position.add(new THREE.Vector3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, 0));
+      if (boosting && speed > 8) {
+        const s = performance.now() * 0.001, mag = Math.min(0.015, speed * 0.00012);
+        cam.position.x += Math.sin(s * 23) * mag;
+        cam.position.y += Math.sin(s * 17 + 1.4) * mag * 0.65;
+      }
       cam.quaternion.copy(group.quaternion);
       const fov = 68 + U.clamp(speed / 120, 0, 1) * 16 + (jump ? 14 : 0);
       if (Math.abs(cam.fov - fov) > 0.05) { cam.fov = U.lerp(cam.fov, fov, Math.min(1, dt * 3)); cam.updateProjectionMatrix(); }
