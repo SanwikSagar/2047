@@ -54,6 +54,7 @@ kbd { font-family: var(--font-mono); font-size: 13px; padding: 0 6px; border: 1p
 @keyframes pulse { 50% { opacity: 0.35; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sweep { to { top: 140%; } }
+@keyframes sweepY { from { transform: translate3d(0, -40%, 0); } to { transform: translate3d(0, 450%, 0); } }
 @keyframes nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
 
 /* cut-corner frame used by panels and cards */
@@ -451,20 +452,16 @@ body.touch #touch-ui > * { pointer-events: auto; }
   user-select: none;
 }
 .holo-scan-line {
-  position: absolute; left: 0; right: 0; top: -10%; height: 25%; pointer-events: none;
+  position: absolute; left: 0; right: 0; top: 0; height: 25%; pointer-events: none;
   background: linear-gradient(180deg, transparent, rgba(154, 240, 255, 0.35), transparent);
-  animation: sweep 4s linear infinite;
-  mix-blend-mode: overlay;
+  animation: sweepY 4s linear infinite;
+  will-change: transform;
 }
 .holo-base {
   display: inline-block;
   background: repeating-linear-gradient(0deg, rgba(230, 248, 255, 0.98) 0 2px, rgba(140, 220, 255, 0.6) 2px 4px);
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: holoBreathe 4s ease-in-out infinite;
-}
-@keyframes holoBreathe {
-  0%, 100% { filter: drop-shadow(0 0 10px rgba(56, 225, 255, 0.5)); transform: translateY(0); }
-  50% { filter: drop-shadow(0 0 22px rgba(56, 225, 255, 0.85)); transform: translateY(-2px); }
+  filter: drop-shadow(0 0 14px rgba(56, 225, 255, 0.65));
 }
 .holo-plinth {
   position: absolute; bottom: 0; left: 5%; right: 5%; height: 3px;
@@ -1847,7 +1844,7 @@ body.touch #scan-panel .kx-text { font-size: 14.5px; }
 
 /* touch devices: drop GPU-heavy effects that are invisible on near-opaque panels */
 body.touch .holo-card, body.touch .side-panel, body.touch .mfd, body.touch #kora-transcript { backdrop-filter: none; -webkit-backdrop-filter: none; }
-body.touch .holo-card::before, body.touch .holo-card::after, body.touch #kora-transcript::before, body.touch #dashboard::before, body.touch .holo-scan-line { animation: none; }
+body.touch .holo-card::before, body.touch .holo-card::after, body.touch #kora-transcript::before, body.touch #dashboard::before, body.touch .holo-scan-line, body.touch .holo-base, body.touch #menu-screen .holo-plinth { animation: none; }
 body.touch .logo-year.holo-text::before, body.touch .logo-year.holo-text::after { animation: none; mix-blend-mode: normal; }
 body.touch .fun-grid .fun-art i, body.touch .ga-dust { animation-duration: 3s; }
 
@@ -1875,8 +1872,59 @@ body.touch #hud-objective { max-width: 28vw; }
 #btn-hud-menu { width: auto; height: 20px; padding: 0 5px; gap: 3px; right: 3px; }
 #btn-hud-menu b { font: 700 8px var(--font-display); letter-spacing: 1px; }
 
+/* explorer card opens the journey log */
+#menu-explorer-card.is-ready { cursor: pointer; }
+#menu-explorer-card.is-ready:hover,
+#menu-explorer-card.is-ready:focus-visible { border-color: var(--amber) !important; box-shadow: 0 0 16px rgba(232, 166, 74, 0.28); outline: none; }
+.exp-open { margin-top: 5px; font-family: var(--font-mono); font-size: clamp(8px, 1.4vh, 10px); letter-spacing: 1.6px; color: var(--amber); }
+
+#journey-screen {
+  align-items: stretch; justify-content: center;
+  padding: calc(8px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(1, 4, 10, 0.72);
+}
+#journey-screen .journey-panel {
+  max-width: min(960px, 100%); width: 100%; height: 100%; max-height: 100%;
+  margin: 0 auto; padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.journey-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 14px 16px 10px; border-bottom: 1px solid var(--line); flex: none;
+}
+.journey-top h2 { margin: 0; }
+.journey-top .panel-sub { margin: 4px 0 0; }
+.journey-top .menu-btn { width: auto; flex: none; padding: 8px 14px; }
+#journey-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 14px 24px; }
+.j-hero { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.j-hero img { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--amber); background: rgba(232, 166, 74, 0.08); object-fit: contain; padding: 4px; }
+.j-hero h3 { margin: 0; font-family: var(--font-display); font-size: 22px; letter-spacing: 1px; color: #fff; }
+.j-hero p { margin: 4px 0 0; color: var(--amber); font-family: var(--font-display); letter-spacing: 1.5px; font-size: 12px; text-transform: uppercase; }
+.j-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.j-stat { background: rgba(56, 225, 255, 0.06); border-left: 2px solid var(--cyan); padding: 7px 8px; min-width: 0; }
+.j-stat b { display: block; font-family: var(--font-display); font-size: 16px; color: #fff; letter-spacing: 0.4px; }
+.j-stat i { font-style: normal; font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.2px; color: var(--text-dim); }
+.j-sec { margin: 16px 0 6px; font-family: var(--font-display); font-size: 12px; letter-spacing: 2px; color: var(--cyan); text-transform: uppercase; }
+.j-sec span { color: var(--text-dim); letter-spacing: 1px; font-size: 11px; }
+.j-list { display: flex; flex-direction: column; gap: 6px; }
+.j-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 8px 10px; background: rgba(2, 10, 20, 0.55); border: 1px solid rgba(79, 216, 255, 0.16); }
+.j-row .nm { color: #fff; font-size: 14px; }
+.j-row .sub { color: var(--text-dim); font-size: 12px; margin-top: 2px; line-height: 1.35; }
+.j-row .st { font-family: var(--font-mono); font-size: 11px; color: var(--amber); white-space: nowrap; }
+.j-row.done .st { color: var(--green); }
+.j-row.wait { opacity: 0.5; }
+.j-row.wait .st { color: var(--text-dim); }
+.j-empty { color: var(--text-dim); font-size: 13px; padding: 2px 2px 8px; }
+@media (max-width: 560px) {
+  .j-hero img { width: 48px; height: 48px; }
+  .j-hero h3 { font-size: 18px; }
+  .j-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .j-row { flex-direction: column; gap: 3px; }
+  .j-row .st { white-space: normal; }
+}
+
 </style>
-<script>window.G_ASSETS = {"avatar_1.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230b3d5c%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%23e8b88a%22/%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%234fd8ff%22/%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%231a3a5c%22/%3E%3C/svg%3E%20", "avatar_2.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%235c2a0b%22%20stroke%3D%22%23ffb347%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%23c68a5a%22/%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%23ffb347%22/%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%235c2a0b%22/%3E%3C/svg%3E%20", "avatar_3.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230b5c3d%22%20stroke%3D%22%235dffa0%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%238a5a3a%22/%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%235dffa0%22/%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%230b5c3d%22/%3E%3C/svg%3E%20", "avatar_4.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%235c0b2a%22%20stroke%3D%22%23ff6b81%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%23e8b88a%22/%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%23ff6b81%22/%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%235c0b2a%22/%3E%3C/svg%3E%20", "badge_planet.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22/%3E%20%20%20%3Cpath%20d%3D%22M32%2010%20a22%2022%200%201%200%200.1%200%20Z%20M10%2032%20a22%2022%200%200%200%2044%200%20Z%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%20%3C/svg%3E%20", "badge_rocket.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22/%3E%20%20%20%3Cpath%20d%3D%22M32%204%20C40%2014%2042%2026%2040%2036%20L24%2036%20C22%2026%2024%2014%2032%204%20Z%20M24%2036%20L18%2046%20L24%2042%20M40%2036%20L46%2046%20L40%2042%20M28%2040%20L28%2048%20L32%2052%20L36%2048%20L36%2040%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%20%3C/svg%3E%20", "badge_star.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22/%3E%20%20%20%3Cpath%20d%3D%22M32%206%20L39%2024%20L58%2024%20L42%2036%20L48%2055%20L32%2043%20L16%2055%20L22%2036%20L6%2024%20L25%2024%20Z%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%20%3C/svg%3E%20", "badge_telescope.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22/%3E%20%20%20%3Cpath%20d%3D%22M14%2044%20L38%2012%20L44%2018%20L20%2050%20Z%20M38%2012%20L44%206%20L50%2012%20L44%2018%20M14%2044%20L10%2054%20L20%2050%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%20%3C/svg%3E%20", "kora.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%20%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%20%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%234fd8ff%22/%3E%20%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b3d5c%22/%3E%20%20%20%20%20%3C/linearGradient%3E%20%20%20%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22url%28%23g%29%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22/%3E%20%20%20%3Ccircle%20cx%3D%2222%22%20cy%3D%2226%22%20r%3D%225%22%20fill%3D%22%23fff%22/%3E%20%20%20%3Ccircle%20cx%3D%2242%22%20cy%3D%2226%22%20r%3D%225%22%20fill%3D%22%23fff%22/%3E%20%20%20%3Ccircle%20cx%3D%2223%22%20cy%3D%2227%22%20r%3D%222%22%20fill%3D%22%230b3d5c%22/%3E%20%20%20%3Ccircle%20cx%3D%2243%22%20cy%3D%2227%22%20r%3D%222%22%20fill%3D%22%230b3d5c%22/%3E%20%20%20%3Cpath%20d%3D%22M18%2042%20Q32%2052%2046%2042%22%20stroke%3D%22%23fff%22%20stroke-width%3D%223%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%20%20%20%3Crect%20x%3D%2214%22%20y%3D%2212%22%20width%3D%228%22%20height%3D%225%22%20rx%3D%222%22%20fill%3D%22%23ffb347%22/%3E%20%20%20%3Ccircle%20cx%3D%2250%22%20cy%3D%2214%22%20r%3D%223%22%20fill%3D%22%235dffa0%22/%3E%20%3C/svg%3E%20", "planet_ceres.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a8a8a8%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23909090%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23707070%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23707070%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_earth.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%233b82c4%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%232b6cb0%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%232f7a3d%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%232f7a3d%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_jupiter.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e8c896%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23d8a86e%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23b07840%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23b07840%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_mars.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23d96a3b%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23c1440e%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%238a3210%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%238a3210%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_mercury.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a3a3a3%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%238c8c8c%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%236e6e6e%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%236e6e6e%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_moon.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23b8bcc2%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%239aa0a6%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%237d8288%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%237d8288%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_neptune.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%235b8fe8%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233b6fd4%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%232850a8%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%232850a8%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_pluto.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23c8b090%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23b09878%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%238a7050%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%238a7050%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_saturn.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23f0dcaa%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e0c890%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23c0a060%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23c0a060%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_sun.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ffe873%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23ffd23f%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23f0a830%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23f0a830%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_uranus.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a8e4ec%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%238ad4dc%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%2360b0bc%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%2360b0bc%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20", "planet_venus.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23f0d896%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e8c872%22/%3E%3C/radialGradient%3E%3C/defs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22/%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23c9a84c%22%20opacity%3D%220.5%22/%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23c9a84c%22%20opacity%3D%220.4%22/%3E%20%3C/svg%3E%20"};
+<script>window.G_ASSETS = {"avatar_1.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230b3d5c%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%23e8b88a%22%2F%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%234fd8ff%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%231a3a5c%22%2F%3E%3C%2Fsvg%3E%20", "avatar_2.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%235c2a0b%22%20stroke%3D%22%23ffb347%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%23c68a5a%22%2F%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%23ffb347%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%235c2a0b%22%2F%3E%3C%2Fsvg%3E%20", "avatar_3.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230b5c3d%22%20stroke%3D%22%235dffa0%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%238a5a3a%22%2F%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%235dffa0%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%230b5c3d%22%2F%3E%3C%2Fsvg%3E%20", "avatar_4.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%235c0b2a%22%20stroke%3D%22%23ff6b81%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2226%22%20r%3D%2212%22%20fill%3D%22%23e8b88a%22%2F%3E%3Cpath%20d%3D%22M14%2054%20Q32%2040%2050%2054%22%20fill%3D%22%23ff6b81%22%2F%3E%3Crect%20x%3D%2220%22%20y%3D%2212%22%20width%3D%2224%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23d8dee6%22%20opacity%3D%220.9%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2217%22%20width%3D%2216%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%235c0b2a%22%2F%3E%3C%2Fsvg%3E%20", "badge_planet.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22%2F%3E%20%20%20%3Cpath%20d%3D%22M32%2010%20a22%2022%200%201%200%200.1%200%20Z%20M10%2032%20a22%2022%200%200%200%2044%200%20Z%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%20%3C%2Fsvg%3E%20", "badge_rocket.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22%2F%3E%20%20%20%3Cpath%20d%3D%22M32%204%20C40%2014%2042%2026%2040%2036%20L24%2036%20C22%2026%2024%2014%2032%204%20Z%20M24%2036%20L18%2046%20L24%2042%20M40%2036%20L46%2046%20L40%2042%20M28%2040%20L28%2048%20L32%2052%20L36%2048%20L36%2040%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%20%3C%2Fsvg%3E%20", "badge_star.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22%2F%3E%20%20%20%3Cpath%20d%3D%22M32%206%20L39%2024%20L58%2024%20L42%2036%20L48%2055%20L32%2043%20L16%2055%20L22%2036%20L6%2024%20L25%2024%20Z%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%20%3C%2Fsvg%3E%20", "badge_telescope.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22%230a2a44%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22%2F%3E%20%20%20%3Cpath%20d%3D%22M14%2044%20L38%2012%20L44%2018%20L20%2050%20Z%20M38%2012%20L44%206%20L50%2012%20L44%2018%20M14%2044%20L10%2054%20L20%2050%22%20fill%3D%22none%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%20%3C%2Fsvg%3E%20", "kora.svg": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%20%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%20%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%234fd8ff%22%2F%3E%20%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%230b3d5c%22%2F%3E%20%20%20%20%20%3C%2FlinearGradient%3E%20%20%20%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2230%22%20fill%3D%22url%28%23g%29%22%20stroke%3D%22%234fd8ff%22%20stroke-width%3D%222%22%2F%3E%20%20%20%3Ccircle%20cx%3D%2222%22%20cy%3D%2226%22%20r%3D%225%22%20fill%3D%22%23fff%22%2F%3E%20%20%20%3Ccircle%20cx%3D%2242%22%20cy%3D%2226%22%20r%3D%225%22%20fill%3D%22%23fff%22%2F%3E%20%20%20%3Ccircle%20cx%3D%2223%22%20cy%3D%2227%22%20r%3D%222%22%20fill%3D%22%230b3d5c%22%2F%3E%20%20%20%3Ccircle%20cx%3D%2243%22%20cy%3D%2227%22%20r%3D%222%22%20fill%3D%22%230b3d5c%22%2F%3E%20%20%20%3Cpath%20d%3D%22M18%2042%20Q32%2052%2046%2042%22%20stroke%3D%22%23fff%22%20stroke-width%3D%223%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%2F%3E%20%20%20%3Crect%20x%3D%2214%22%20y%3D%2212%22%20width%3D%228%22%20height%3D%225%22%20rx%3D%222%22%20fill%3D%22%23ffb347%22%2F%3E%20%20%20%3Ccircle%20cx%3D%2250%22%20cy%3D%2214%22%20r%3D%223%22%20fill%3D%22%235dffa0%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_ceres.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a8a8a8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23909090%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23707070%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23707070%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_earth.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%233b82c4%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%232b6cb0%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%232f7a3d%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%232f7a3d%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_jupiter.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23e8c896%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23d8a86e%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23b07840%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23b07840%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_mars.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23d96a3b%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23c1440e%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%238a3210%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%238a3210%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_mercury.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a3a3a3%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%238c8c8c%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%236e6e6e%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%236e6e6e%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_moon.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23b8bcc2%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%239aa0a6%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%237d8288%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%237d8288%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_neptune.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%235b8fe8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233b6fd4%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%232850a8%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%232850a8%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_pluto.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23c8b090%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23b09878%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%238a7050%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%238a7050%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_saturn.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23f0dcaa%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e0c890%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23c0a060%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23c0a060%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_sun.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ffe873%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23ffd23f%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23f0a830%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23f0a830%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_uranus.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23a8e4ec%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%238ad4dc%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%2360b0bc%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%2360b0bc%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20", "planet_venus.svg": "data:image/svg+xml;utf8,%EF%BB%BF%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%20%3Cdefs%3E%3CradialGradient%20id%3D%22g%22%20cx%3D%2235%25%22%20cy%3D%2235%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23f0d896%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e8c872%22%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%20%20%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2228%22%20fill%3D%22url%28%23g%29%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2224%22%20cy%3D%2224%22%20rx%3D%228%22%20ry%3D%225%22%20fill%3D%22%23c9a84c%22%20opacity%3D%220.5%22%2F%3E%20%20%20%3Cellipse%20cx%3D%2240%22%20cy%3D%2240%22%20rx%3D%2210%22%20ry%3D%226%22%20fill%3D%22%23c9a84c%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E%20"};
 (function(){
   const origSetAttr = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function(name, val) {
@@ -2192,6 +2240,19 @@ body.touch #hud-objective { max-width: 28vw; }
       </div>
 
       <div class="menu-ticker"><div id="menu-ticker-text"></div></div>
+    </div>
+
+    <div id="journey-screen" class="screen hidden">
+      <div class="panel large journey-panel">
+        <div class="journey-top">
+          <div>
+            <h2>Expedition Log</h2>
+            <p class="panel-sub" id="journey-sub">Everything you have explored and earned.</p>
+          </div>
+          <button class="menu-btn" id="btn-journey-close" type="button">Back</button>
+        </div>
+        <div id="journey-body"></div>
+      </div>
     </div>
 
     <div id="profile-screen" class="screen hidden">
@@ -6857,6 +6918,17 @@ G.World = (function () {
     }
   }
 
+  // Menu backdrop only: keep the Earth orbit and the sun alive, skip dust, terrain props and scan FX.
+  function updateLite(dt) {
+    W.time += dt;
+    updateOrbits(dt);
+    for (let i = 0; i < animated.length; i++) animated[i](W.time, dt);
+    const cam = W.camera;
+    if (stars && cam) stars.position.copy(cam.position);
+    if (sky && cam) sky.position.copy(cam.position);
+    if (dust) dust.lines.visible = false;
+  }
+
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
     W.renderer.setSize(w, h, false);
@@ -6968,6 +7040,7 @@ G.World = (function () {
   W.init = init;
   W.isReady = function () { return ready; };
   W.update = update;
+  W.updateLite = updateLite;
   // Hold a stable pixel ratio. Stepping it every couple of seconds makes every edge crawl.
   const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 1.75);
   const MIN_PR = 1;
@@ -7013,7 +7086,35 @@ G.World = (function () {
       cam.updateProjectionMatrix();
     }
   }
-  W.render = function () { fitClip(); adaptResolution(); if (composer) composer.render(); else W.renderer.render(W.scene, W.camera); };
+  // The menu paints a dark panel over the scene, so a full-resolution bloom pass there only steals frames from the buttons.
+  let menuPr = false;
+  W.renderDirect = function () {
+    const cam = W.camera;
+    if (stars && cam) stars.position.copy(cam.position);
+    if (sky && cam) sky.position.copy(cam.position);
+    fitClip();
+    if (!menuPr && W.renderer) {
+      menuPr = true;
+      W.renderer.setPixelRatio(1);
+      resize();
+    }
+    W.renderer.render(W.scene, W.camera);
+  };
+  W.render = function () {
+    if (menuPr && W.renderer) {
+      menuPr = false;
+      W.renderer.setPixelRatio(prNow);
+      resize();
+      frames = 0;
+      frameT = performance.now();
+      badWindows = 0;
+      goodWindows = 0;
+    }
+    fitClip();
+    adaptResolution();
+    if (composer) composer.render();
+    else W.renderer.render(W.scene, W.camera);
+  };
   W.buildTerrain = buildTerrain;
   W.removeTerrain = removeTerrain;
   W.groundY = groundY;
@@ -11794,12 +11895,7 @@ G.FX = (function () {
     }
   }
 
-  let moteT = 0, emitT = 0, shootT = 2;
-  function shoot() {
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    add({ x: dir > 0 ? Math.random() * W * 0.5 : W * 0.5 + Math.random() * W * 0.5, y: Math.random() * H * 0.4, vx: dir * (520 + Math.random() * 360), vy: 150 + Math.random() * 140, life: 0.85, t: 0, size: 1.7, c: '205,232,255', drag: 0, kind: 'streak', len: 0.16 });
-    if (Math.random() < 0.5 && G.Audio) G.Audio.play('shootingStar');
-  }
+  let moteT = 0, emitT = 0;
   function frame(now) {
     if (!running) return;
     if (LOW && now - last < 30) { requestAnimationFrame(frame); return; }
@@ -11812,10 +11908,14 @@ G.FX = (function () {
     const boosting = playing && G.Ship && G.Ship.isActive && G.Ship.isActive() && G.Ship.throttle && G.Ship.throttle() > 0.85;
 
     moteT -= dt;
-    const menuEl = U.el('menu-screen');
-    shootT -= dt;
-    if (shootT <= 0) { shootT = 3 + Math.random() * 4; if (menuEl && !menuEl.classList.contains('hidden') && !playing) shoot(); }
     if (moteT <= 0) { moteT = 1; }
+    // The overlay sits above the menu. With nothing to draw, stop so it does not clear the whole screen every frame.
+    if (!playing && !parts.length && !rings.length && !warp) {
+      g.clearRect(0, 0, W, H);
+      cv.style.visibility = 'hidden';
+      running = false;
+      return;
+    }
     emitT -= dt;
     if (emitT <= 0) {
       emitT = 0.03;
@@ -11859,7 +11959,9 @@ G.FX = (function () {
   }
 
   function wake() {
-    if (running || !cv) return;
+    if (!cv) return;
+    cv.style.visibility = 'visible';
+    if (running) return;
     running = true;
     last = performance.now();
     requestAnimationFrame(frame);
@@ -11881,7 +11983,7 @@ G.FX = (function () {
     wake();
   }
 
-  return { init: init, burst: burst };
+  return { init: init, burst: burst, wake: wake };
 })();
 
 </script>
@@ -13820,6 +13922,7 @@ window.G = window.G || {};
 G.Game = (function () {
   const U = G.utils;
   let mode = 'menu';
+  let menuHold = 0;
   let clock = null;
   let interactTarget = null;
   let landed = false;
@@ -13893,6 +13996,7 @@ G.Game = (function () {
               '<span><b>' + (Math.min(st.missionIndex + 1, G.MISSIONS.length)) + '/' + G.MISSIONS.length + '</b><i>MISSION</i></span>' +
               '<span><b>' + codexCount + '</b><i>CODEX</i></span>' +
             '</div>' +
+            '<div class="exp-open">VIEW JOURNEY</div>' +
           '</div>' +
         '</div>';
       }
@@ -13901,6 +14005,207 @@ G.Game = (function () {
       if (sub) sub.textContent = 'No Active Log';
       if (info) info.innerHTML = '<div class="terminal-placeholder">REGISTER CADET TO BEGIN</div>';
     }
+    const card = U.el('menu-explorer-card');
+    if (card) {
+      const ready = !!(st && st.profile);
+      card.classList.toggle('is-ready', ready);
+      if (ready) {
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', 'Open expedition log');
+      } else {
+        card.removeAttribute('role');
+        card.removeAttribute('tabindex');
+        card.removeAttribute('aria-label');
+      }
+    }
+  }
+
+  function closeJourney() {
+    showScreen('menu-screen');
+  }
+
+  function openJourney() {
+    const st = G.Save.get();
+    if (!st || !st.profile) return;
+    const E = G.Codex.esc;
+    const rank = G.Save.rank();
+    let nextRank = null;
+    for (let i = 0; i < G.RANKS.length; i++) {
+      if (G.RANKS[i].xp > st.xp) { nextRank = G.RANKS[i]; break; }
+    }
+    const worlds = ['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'ceres', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+    const visited = st.visited || [];
+    const knowledge = st.knowledge || {};
+    const knownIds = Object.keys(knowledge);
+    const scanned = st.scannedPois || {};
+    const crew = st.crew || {};
+    const cards = crew.cards || {};
+    const cardIds = Object.keys(cards);
+    const codex = st.codex || [];
+    const sectors = st.sectors ? Object.keys(st.sectors).length : 0;
+    const avIdx = st.profile.avatar || 1;
+    const avSrc = (window.G_ASSETS && G_ASSETS['avatar_' + avIdx + '.svg']) ? G_ASSETS['avatar_' + avIdx + '.svg'] : ('assets/img/avatar_' + avIdx + '.svg');
+    let quizTries = 0, quizRight = 0;
+    const quizIds = Object.keys(st.quizStats || {});
+    for (let i = 0; i < quizIds.length; i++) {
+      quizTries += st.quizStats[quizIds[i]].attempts || 0;
+      quizRight += st.quizStats[quizIds[i]].correct || 0;
+    }
+    const exploredN = worlds.filter(function (id) { return visited.indexOf(id) >= 0; }).length;
+    const badgeN = (st.badges || []).length;
+
+    function row(name, status, sub, kind) {
+      return '<div class="j-row' + (kind ? ' ' + kind : '') + '"><div><div class="nm">' + E(name) + '</div>' +
+        (sub ? '<div class="sub">' + E(sub) + '</div>' : '') +
+        '</div><div class="st">' + E(status) + '</div></div>';
+    }
+    function pretty(id) {
+      return String(id || '').replace(/[._]/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); });
+    }
+
+    let html = '';
+    html += '<div class="j-hero"><img src="' + avSrc + '" alt=""><div><h3>' + E(st.profile.name) + '</h3><p>' + E(rank.name) + '</p></div></div>';
+    html += '<div class="j-grid">';
+    html += '<div class="j-stat"><b>' + (st.xp || 0) + '</b><i>XP' + (nextRank ? ' / ' + nextRank.xp : ' MAX') + '</i></div>';
+    html += '<div class="j-stat"><b>' + exploredN + '/' + worlds.length + '</b><i>WORLDS</i></div>';
+    html += '<div class="j-stat"><b>' + (st.completedMissions || []).length + '/' + G.MISSIONS.length + '</b><i>MISSIONS</i></div>';
+    html += '<div class="j-stat"><b>' + knownIds.length + '/' + G.KNOWLEDGE.length + '</b><i>TOPICS</i></div>';
+    html += '<div class="j-stat"><b>' + badgeN + '/' + G.BADGES.length + '</b><i>BADGES</i></div>';
+    html += '<div class="j-stat"><b>' + codex.length + '</b><i>CODEX</i></div>';
+    html += '<div class="j-stat"><b>' + cardIds.length + '</b><i>CARDS</i></div>';
+    html += '<div class="j-stat"><b>' + (st.questionsAsked || 0) + '</b><i>QUESTIONS</i></div>';
+    html += '<div class="j-stat"><b>' + sectors + '</b><i>SECTORS</i></div>';
+    html += '</div>';
+
+    html += '<div class="j-sec">Worlds explored <span>' + exploredN + ' visited</span></div><div class="j-list">';
+    for (let i = 0; i < worlds.length; i++) {
+      const p = G.PLANETS[worlds[i]];
+      if (!p) continue;
+      const been = visited.indexOf(p.id) >= 0;
+      const open = been || (st.unlocked && st.unlocked.indexOf(p.id) >= 0);
+      const topics = G.KNOWLEDGE.filter(function (k) { return k.planet === p.id && knowledge[k.id]; });
+      const scans = Object.keys(scanned).filter(function (k) { return k.indexOf(p.id + ':') === 0; }).map(function (k) { return pretty(k.slice(p.id.length + 1)); });
+      let sub = p.type;
+      if (topics.length) sub += ' · ' + topics.length + ' topic' + (topics.length === 1 ? '' : 's');
+      if (scans.length) sub += ' · scanned ' + scans.join(', ');
+      html += row(p.name, been ? 'Explored' : open ? 'Unlocked' : 'Not yet', sub, been ? 'done' : open ? '' : 'wait');
+    }
+    const orbitScans = Object.keys(scanned).filter(function (k) { return k.indexOf('orbit:') === 0; }).map(function (k) { return pretty(k.slice(6)); });
+    if (orbitScans.length) html += row('In space', 'Scanned', orbitScans.join(', '), 'done');
+    html += '</div>';
+
+    html += '<div class="j-sec">Stations</div><div class="j-list">';
+    const stationIds = Object.keys(G.STATIONS);
+    for (let i = 0; i < stationIds.length; i++) {
+      const s = G.STATIONS[stationIds[i]];
+      const been = visited.indexOf(s.id) >= 0;
+      const cert = st.badges && st.badges.indexOf('cert_' + s.id) >= 0;
+      html += row(s.name, been ? (cert ? 'Certified' : 'Docked') : 'Not yet', s.desc, been ? 'done' : 'wait');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">Missions</div><div class="j-list">';
+    for (let i = 0; i < G.MISSIONS.length; i++) {
+      const m = G.MISSIONS[i];
+      const done = (st.completedMissions || []).indexOf(m.id) >= 0 || i < st.missionIndex;
+      const active = !done && i === st.missionIndex;
+      let sub = m.concept;
+      if (active && m.steps) {
+        const bits = [];
+        for (let s = 0; s < m.steps.length; s++) {
+          const mark = s < st.missionStep ? '\u2713' : s === st.missionStep ? '\u25b6' : '\u00b7';
+          bits.push(mark + ' ' + m.steps[s].text);
+        }
+        sub += ' \u2014 ' + bits.join('  ');
+      }
+      html += row(m.title, done ? 'Complete' : active ? 'In progress' : 'Ahead', sub, done ? 'done' : active ? '' : 'wait');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">What you learned <span>' + knownIds.length + ' topics</span></div>';
+    if (!knownIds.length) html += '<div class="j-empty">No science topics yet. Scan a site or talk to an astronaut.</div>';
+    else {
+      html += '<div class="j-list">';
+      knownIds.sort();
+      for (let i = 0; i < knownIds.length; i++) {
+        const t = G.KNOWLEDGE.find(function (k) { return k.id === knownIds[i]; });
+        const rec = knowledge[knownIds[i]];
+        if (!t) {
+          html += row(pretty(knownIds[i]), rec.level || 'seen', (rec.scans || 1) + ' scan' + ((rec.scans || 1) === 1 ? '' : 's'), 'done');
+          continue;
+        }
+        const where = t.planet && G.PLANETS[t.planet] ? G.PLANETS[t.planet].name : 'Field notes';
+        html += row(t.topic, rec.level || 'seen', where + ' \u00b7 ' + t.summary, 'done');
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="j-sec">Live codex <span>' + codex.length + '</span></div>';
+    if (!codex.length) html += '<div class="j-empty">Nothing downloaded yet. Fly close to a world and KORA will pull a real article.</div>';
+    else {
+      html += '<div class="j-list">';
+      const list = codex.slice().reverse();
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        html += row(c.title, 'Saved', c.extract || c.description || '', 'done');
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="j-sec">Badges earned <span>' + badgeN + '/' + G.BADGES.length + '</span></div><div class="j-list">';
+    const earned = [];
+    const locked = [];
+    for (let i = 0; i < G.BADGES.length; i++) {
+      const b = G.BADGES[i];
+      if (G.Save.hasBadge(b.id)) earned.push(b);
+      else locked.push(b);
+    }
+    for (let i = 0; i < earned.length; i++) html += row(earned[i].name, 'Earned', earned[i].desc, 'done');
+    for (let i = 0; i < locked.length; i++) {
+      const b = locked[i];
+      const hidden = b.secret;
+      html += row(hidden ? 'Secret badge' : b.name, 'Locked', hidden ? 'Hidden until you find it.' : b.desc, 'wait');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">Cards and games</div>';
+    const metN = crew.met ? Object.keys(crew.met).length : 0;
+    let gameSub = metN + ' astronaut' + (metN === 1 ? '' : 's') + ' met';
+    if (crew.passes) gameSub += ' · ' + crew.passes + ' fun pass' + (crew.passes === 1 ? '' : 'es');
+    if (crew.raceBest) gameSub += ' · race best ' + Number(crew.raceBest).toFixed(1) + 's';
+    if (crew.catchBest) gameSub += ' · star catcher ' + crew.catchBest;
+    html += '<div class="j-list">' + row('Crew record', metN ? 'In the log' : 'None yet', gameSub, metN ? 'done' : 'wait');
+    cardIds.sort(function (a, b) { return (cards[a].n || 0) - (cards[b].n || 0); });
+    if (!cardIds.length) html += '<div class="j-empty">No knowledge cards yet. Look for the amber light and talk to an astronaut.</div>';
+    for (let i = 0; i < cardIds.length; i++) {
+      const c = cards[cardIds[i]];
+      html += row(c.title || pretty(cardIds[i]), c.rarity || 'card', (c.from ? 'From ' + c.from + ' · ' : '') + '#' + (c.n || i + 1), 'done');
+    }
+    const examIds = Object.keys(crew.exams || {});
+    for (let i = 0; i < examIds.length; i++) {
+      const ex = crew.exams[examIds[i]] || {};
+      const stn = G.STATIONS[examIds[i]];
+      html += row((stn ? stn.name : pretty(examIds[i])) + ' exam', ex.passed ? 'Passed' : 'Tried', 'Best ' + (ex.best || 0) + '/3', ex.passed ? 'done' : '');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">Quizzes <span>' + quizRight + '/' + quizTries + ' correct</span></div>';
+    if (!quizIds.length) html += '<div class="j-empty">No quizzes answered yet.</div>';
+    else {
+      html += '<div class="j-list">';
+      for (let i = 0; i < quizIds.length; i++) {
+        const q = G.QUESTIONS.find(function (item) { return item.id === quizIds[i]; });
+        const rec = st.quizStats[quizIds[i]];
+        html += row(q ? q.text : pretty(quizIds[i]), (rec.correct || 0) + '/' + (rec.attempts || 0), q ? pretty(q.topic) : '', rec.correct ? 'done' : '');
+      }
+      html += '</div>';
+    }
+
+    const subEl = U.el('journey-sub');
+    if (subEl) subEl.textContent = nextRank ? (nextRank.xp - st.xp) + ' XP to ' + nextRank.name : 'Highest rank reached';
+    U.el('journey-body').innerHTML = html;
+    showScreen('journey-screen');
   }
 
   function bindMenus() {
@@ -13926,6 +14231,28 @@ G.Game = (function () {
       G.Audio.play('click');
       G.Guide.open();
     };
+    const explorerCard = U.el('menu-explorer-card');
+    if (explorerCard) {
+      explorerCard.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('button')) return;
+        if (!G.Save.get().profile) return;
+        G.Audio.play('click');
+        openJourney();
+      });
+      explorerCard.addEventListener('keydown', function (e) {
+        if (e.code !== 'Enter' && e.code !== 'Space') return;
+        if (!G.Save.get().profile) return;
+        e.preventDefault();
+        G.Audio.play('click');
+        openJourney();
+      });
+    }
+    const journeyClose = U.el('btn-journey-close');
+    if (journeyClose) journeyClose.onclick = function () { G.Audio.play('click'); closeJourney(); };
+    const journeyScreen = U.el('journey-screen');
+    if (journeyScreen) journeyScreen.addEventListener('click', function (e) {
+      if (e.target === journeyScreen) { G.Audio.play('click'); closeJourney(); }
+    });
     U.el('btn-profile-back').onclick = function () {
       G.Audio.play('click');
       showScreen('menu-screen');
@@ -13998,6 +14325,14 @@ G.Game = (function () {
 
   function bindKeys() {
     window.addEventListener('keydown', function (e) {
+      if (e.code === 'Escape') {
+        const journey = U.el('journey-screen');
+        if (journey && !journey.classList.contains('hidden')) {
+          G.Audio.play('click');
+          closeJourney();
+          return;
+        }
+      }
       if (mode !== 'play') return;
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
       switch (e.code) {
@@ -14168,7 +14503,7 @@ G.Game = (function () {
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
   }
   function showScreen(id) {
-    ['menu-screen', 'profile-screen', 'briefing-screen', 'report-screen', 'credits-screen'].forEach(function (s) {
+    ['menu-screen', 'profile-screen', 'briefing-screen', 'report-screen', 'credits-screen', 'journey-screen'].forEach(function (s) {
       U.hide(s);
     });
     // Close any side panels left open from gameplay
@@ -14213,6 +14548,7 @@ G.Game = (function () {
     G.Ship.activate();
     G.Audio.unlock();
     G.Audio.startMusic('earth');
+    if (G.FX && G.FX.wake) G.FX.wake();
     const st = G.Save.get();
     if (!isContinue || !briefingShown) {
       briefingShown = true;
@@ -14619,8 +14955,8 @@ G.Game = (function () {
     const dt = Math.min(0.05, (now - clock.last) / 1000);
     clock.last = now;
     if (!G.World.isReady()) return;
-    G.World.update(dt);
     if (mode === 'play') {
+      G.World.update(dt);
       let info = null;
       if (landed) {
         info = G.Rover.update(dt);
@@ -14673,9 +15009,17 @@ G.Game = (function () {
       if (posSaveTimer <= 0) { posSaveTimer = 5; saveWorldPos(); }
       if (Math.random() < dt * 4) G.Missions.checkArrival(G.Ship.position(), landed ? G.World.terrainBody : null);
       if (Math.random() < dt * 0.002) G.Save.save();
+      G.World.render();
     } else {
       G.Audio.engine(null, 0, false, dt);
-      G.Spacecraft.update(dt);
+      menuHold += dt;
+      const budget = document.body.classList.contains('touch') ? 0.08 : 0.05;
+      if (menuHold < budget) return;
+      const stepDt = Math.min(0.12, menuHold);
+      menuHold = 0;
+      if (G.World.updateLite) G.World.updateLite(stepDt);
+      else G.World.update(stepDt);
+      if (G.Spacecraft && G.Spacecraft.update) G.Spacecraft.update(stepDt);
       const cam = G.World.camera;
       const t = now * 0.00003;
       const earth = G.World.bodies['earth'];
@@ -14688,8 +15032,9 @@ G.Game = (function () {
         cam.lookAt(earth.worldPos.x - Math.sin(t) * 22, 0, earth.worldPos.z + Math.cos(t) * 22);
         if (cam.fov !== 55) { cam.fov = 55; cam.updateProjectionMatrix(); }
       }
+      if (G.World.renderDirect) G.World.renderDirect();
+      else G.World.render();
     }
-    G.World.render();
   }
 
   function openReport() {

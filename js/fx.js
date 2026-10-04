@@ -95,12 +95,7 @@ G.FX = (function () {
     }
   }
 
-  let moteT = 0, emitT = 0, shootT = 2;
-  function shoot() {
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    add({ x: dir > 0 ? Math.random() * W * 0.5 : W * 0.5 + Math.random() * W * 0.5, y: Math.random() * H * 0.4, vx: dir * (520 + Math.random() * 360), vy: 150 + Math.random() * 140, life: 0.85, t: 0, size: 1.7, c: '205,232,255', drag: 0, kind: 'streak', len: 0.16 });
-    if (Math.random() < 0.5 && G.Audio) G.Audio.play('shootingStar');
-  }
+  let moteT = 0, emitT = 0;
   function frame(now) {
     if (!running) return;
     if (LOW && now - last < 30) { requestAnimationFrame(frame); return; }
@@ -113,10 +108,14 @@ G.FX = (function () {
     const boosting = playing && G.Ship && G.Ship.isActive && G.Ship.isActive() && G.Ship.throttle && G.Ship.throttle() > 0.85;
 
     moteT -= dt;
-    const menuEl = U.el('menu-screen');
-    shootT -= dt;
-    if (shootT <= 0) { shootT = 3 + Math.random() * 4; if (menuEl && !menuEl.classList.contains('hidden') && !playing) shoot(); }
     if (moteT <= 0) { moteT = 1; }
+    // The overlay sits above the menu. With nothing to draw, stop so it does not clear the whole screen every frame.
+    if (!playing && !parts.length && !rings.length && !warp) {
+      g.clearRect(0, 0, W, H);
+      cv.style.visibility = 'hidden';
+      running = false;
+      return;
+    }
     emitT -= dt;
     if (emitT <= 0) {
       emitT = 0.03;
@@ -160,7 +159,9 @@ G.FX = (function () {
   }
 
   function wake() {
-    if (running || !cv) return;
+    if (!cv) return;
+    cv.style.visibility = 'visible';
+    if (running) return;
     running = true;
     last = performance.now();
     requestAnimationFrame(frame);
@@ -182,5 +183,5 @@ G.FX = (function () {
     wake();
   }
 
-  return { init: init, burst: burst };
+  return { init: init, burst: burst, wake: wake };
 })();

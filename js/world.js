@@ -1366,6 +1366,17 @@ G.World = (function () {
     }
   }
 
+  // Menu backdrop only: keep the Earth orbit and the sun alive, skip dust, terrain props and scan FX.
+  function updateLite(dt) {
+    W.time += dt;
+    updateOrbits(dt);
+    for (let i = 0; i < animated.length; i++) animated[i](W.time, dt);
+    const cam = W.camera;
+    if (stars && cam) stars.position.copy(cam.position);
+    if (sky && cam) sky.position.copy(cam.position);
+    if (dust) dust.lines.visible = false;
+  }
+
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
     W.renderer.setSize(w, h, false);
@@ -1477,6 +1488,7 @@ G.World = (function () {
   W.init = init;
   W.isReady = function () { return ready; };
   W.update = update;
+  W.updateLite = updateLite;
   // Hold a stable pixel ratio. Stepping it every couple of seconds makes every edge crawl.
   const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 1.75);
   const MIN_PR = 1;
@@ -1522,7 +1534,35 @@ G.World = (function () {
       cam.updateProjectionMatrix();
     }
   }
-  W.render = function () { fitClip(); adaptResolution(); if (composer) composer.render(); else W.renderer.render(W.scene, W.camera); };
+  // The menu paints a dark panel over the scene, so a full-resolution bloom pass there only steals frames from the buttons.
+  let menuPr = false;
+  W.renderDirect = function () {
+    const cam = W.camera;
+    if (stars && cam) stars.position.copy(cam.position);
+    if (sky && cam) sky.position.copy(cam.position);
+    fitClip();
+    if (!menuPr && W.renderer) {
+      menuPr = true;
+      W.renderer.setPixelRatio(1);
+      resize();
+    }
+    W.renderer.render(W.scene, W.camera);
+  };
+  W.render = function () {
+    if (menuPr && W.renderer) {
+      menuPr = false;
+      W.renderer.setPixelRatio(prNow);
+      resize();
+      frames = 0;
+      frameT = performance.now();
+      badWindows = 0;
+      goodWindows = 0;
+    }
+    fitClip();
+    adaptResolution();
+    if (composer) composer.render();
+    else W.renderer.render(W.scene, W.camera);
+  };
   W.buildTerrain = buildTerrain;
   W.removeTerrain = removeTerrain;
   W.groundY = groundY;

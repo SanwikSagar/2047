@@ -3,6 +3,7 @@ window.G = window.G || {};
 G.Game = (function () {
   const U = G.utils;
   let mode = 'menu';
+  let menuHold = 0;
   let clock = null;
   let interactTarget = null;
   let landed = false;
@@ -76,6 +77,7 @@ G.Game = (function () {
               '<span><b>' + (Math.min(st.missionIndex + 1, G.MISSIONS.length)) + '/' + G.MISSIONS.length + '</b><i>MISSION</i></span>' +
               '<span><b>' + codexCount + '</b><i>CODEX</i></span>' +
             '</div>' +
+            '<div class="exp-open">VIEW JOURNEY</div>' +
           '</div>' +
         '</div>';
       }
@@ -84,6 +86,207 @@ G.Game = (function () {
       if (sub) sub.textContent = 'No Active Log';
       if (info) info.innerHTML = '<div class="terminal-placeholder">REGISTER CADET TO BEGIN</div>';
     }
+    const card = U.el('menu-explorer-card');
+    if (card) {
+      const ready = !!(st && st.profile);
+      card.classList.toggle('is-ready', ready);
+      if (ready) {
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', 'Open expedition log');
+      } else {
+        card.removeAttribute('role');
+        card.removeAttribute('tabindex');
+        card.removeAttribute('aria-label');
+      }
+    }
+  }
+
+  function closeJourney() {
+    showScreen('menu-screen');
+  }
+
+  function openJourney() {
+    const st = G.Save.get();
+    if (!st || !st.profile) return;
+    const E = G.Codex.esc;
+    const rank = G.Save.rank();
+    let nextRank = null;
+    for (let i = 0; i < G.RANKS.length; i++) {
+      if (G.RANKS[i].xp > st.xp) { nextRank = G.RANKS[i]; break; }
+    }
+    const worlds = ['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'ceres', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+    const visited = st.visited || [];
+    const knowledge = st.knowledge || {};
+    const knownIds = Object.keys(knowledge);
+    const scanned = st.scannedPois || {};
+    const crew = st.crew || {};
+    const cards = crew.cards || {};
+    const cardIds = Object.keys(cards);
+    const codex = st.codex || [];
+    const sectors = st.sectors ? Object.keys(st.sectors).length : 0;
+    const avIdx = st.profile.avatar || 1;
+    const avSrc = (window.G_ASSETS && G_ASSETS['avatar_' + avIdx + '.svg']) ? G_ASSETS['avatar_' + avIdx + '.svg'] : ('assets/img/avatar_' + avIdx + '.svg');
+    let quizTries = 0, quizRight = 0;
+    const quizIds = Object.keys(st.quizStats || {});
+    for (let i = 0; i < quizIds.length; i++) {
+      quizTries += st.quizStats[quizIds[i]].attempts || 0;
+      quizRight += st.quizStats[quizIds[i]].correct || 0;
+    }
+    const exploredN = worlds.filter(function (id) { return visited.indexOf(id) >= 0; }).length;
+    const badgeN = (st.badges || []).length;
+
+    function row(name, status, sub, kind) {
+      return '<div class="j-row' + (kind ? ' ' + kind : '') + '"><div><div class="nm">' + E(name) + '</div>' +
+        (sub ? '<div class="sub">' + E(sub) + '</div>' : '') +
+        '</div><div class="st">' + E(status) + '</div></div>';
+    }
+    function pretty(id) {
+      return String(id || '').replace(/[._]/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); });
+    }
+
+    let html = '';
+    html += '<div class="j-hero"><img src="' + avSrc + '" alt=""><div><h3>' + E(st.profile.name) + '</h3><p>' + E(rank.name) + '</p></div></div>';
+    html += '<div class="j-grid">';
+    html += '<div class="j-stat"><b>' + (st.xp || 0) + '</b><i>XP' + (nextRank ? ' / ' + nextRank.xp : ' MAX') + '</i></div>';
+    html += '<div class="j-stat"><b>' + exploredN + '/' + worlds.length + '</b><i>WORLDS</i></div>';
+    html += '<div class="j-stat"><b>' + (st.completedMissions || []).length + '/' + G.MISSIONS.length + '</b><i>MISSIONS</i></div>';
+    html += '<div class="j-stat"><b>' + knownIds.length + '/' + G.KNOWLEDGE.length + '</b><i>TOPICS</i></div>';
+    html += '<div class="j-stat"><b>' + badgeN + '/' + G.BADGES.length + '</b><i>BADGES</i></div>';
+    html += '<div class="j-stat"><b>' + codex.length + '</b><i>CODEX</i></div>';
+    html += '<div class="j-stat"><b>' + cardIds.length + '</b><i>CARDS</i></div>';
+    html += '<div class="j-stat"><b>' + (st.questionsAsked || 0) + '</b><i>QUESTIONS</i></div>';
+    html += '<div class="j-stat"><b>' + sectors + '</b><i>SECTORS</i></div>';
+    html += '</div>';
+
+    html += '<div class="j-sec">Worlds explored <span>' + exploredN + ' visited</span></div><div class="j-list">';
+    for (let i = 0; i < worlds.length; i++) {
+      const p = G.PLANETS[worlds[i]];
+      if (!p) continue;
+      const been = visited.indexOf(p.id) >= 0;
+      const open = been || (st.unlocked && st.unlocked.indexOf(p.id) >= 0);
+      const topics = G.KNOWLEDGE.filter(function (k) { return k.planet === p.id && knowledge[k.id]; });
+      const scans = Object.keys(scanned).filter(function (k) { return k.indexOf(p.id + ':') === 0; }).map(function (k) { return pretty(k.slice(p.id.length + 1)); });
+      let sub = p.type;
+      if (topics.length) sub += ' · ' + topics.length + ' topic' + (topics.length === 1 ? '' : 's');
+      if (scans.length) sub += ' · scanned ' + scans.join(', ');
+      html += row(p.name, been ? 'Explored' : open ? 'Unlocked' : 'Not yet', sub, been ? 'done' : open ? '' : 'wait');
+    }
+    const orbitScans = Object.keys(scanned).filter(function (k) { return k.indexOf('orbit:') === 0; }).map(function (k) { return pretty(k.slice(6)); });
+    if (orbitScans.length) html += row('In space', 'Scanned', orbitScans.join(', '), 'done');
+    html += '</div>';
+
+    html += '<div class="j-sec">Stations</div><div class="j-list">';
+    const stationIds = Object.keys(G.STATIONS);
+    for (let i = 0; i < stationIds.length; i++) {
+      const s = G.STATIONS[stationIds[i]];
+      const been = visited.indexOf(s.id) >= 0;
+      const cert = st.badges && st.badges.indexOf('cert_' + s.id) >= 0;
+      html += row(s.name, been ? (cert ? 'Certified' : 'Docked') : 'Not yet', s.desc, been ? 'done' : 'wait');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">Missions</div><div class="j-list">';
+    for (let i = 0; i < G.MISSIONS.length; i++) {
+      const m = G.MISSIONS[i];
+      const done = (st.completedMissions || []).indexOf(m.id) >= 0 || i < st.missionIndex;
+      const active = !done && i === st.missionIndex;
+      let sub = m.concept;
+      if (active && m.steps) {
+        const bits = [];
+        for (let s = 0; s < m.steps.length; s++) {
+          const mark = s < st.missionStep ? '\u2713' : s === st.missionStep ? '\u25b6' : '\u00b7';
+          bits.push(mark + ' ' + m.steps[s].text);
+        }
+        sub += ' \u2014 ' + bits.join('  ');
+      }
+      html += row(m.title, done ? 'Complete' : active ? 'In progress' : 'Ahead', sub, done ? 'done' : active ? '' : 'wait');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">What you learned <span>' + knownIds.length + ' topics</span></div>';
+    if (!knownIds.length) html += '<div class="j-empty">No science topics yet. Scan a site or talk to an astronaut.</div>';
+    else {
+      html += '<div class="j-list">';
+      knownIds.sort();
+      for (let i = 0; i < knownIds.length; i++) {
+        const t = G.KNOWLEDGE.find(function (k) { return k.id === knownIds[i]; });
+        const rec = knowledge[knownIds[i]];
+        if (!t) {
+          html += row(pretty(knownIds[i]), rec.level || 'seen', (rec.scans || 1) + ' scan' + ((rec.scans || 1) === 1 ? '' : 's'), 'done');
+          continue;
+        }
+        const where = t.planet && G.PLANETS[t.planet] ? G.PLANETS[t.planet].name : 'Field notes';
+        html += row(t.topic, rec.level || 'seen', where + ' \u00b7 ' + t.summary, 'done');
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="j-sec">Live codex <span>' + codex.length + '</span></div>';
+    if (!codex.length) html += '<div class="j-empty">Nothing downloaded yet. Fly close to a world and KORA will pull a real article.</div>';
+    else {
+      html += '<div class="j-list">';
+      const list = codex.slice().reverse();
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        html += row(c.title, 'Saved', c.extract || c.description || '', 'done');
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="j-sec">Badges earned <span>' + badgeN + '/' + G.BADGES.length + '</span></div><div class="j-list">';
+    const earned = [];
+    const locked = [];
+    for (let i = 0; i < G.BADGES.length; i++) {
+      const b = G.BADGES[i];
+      if (G.Save.hasBadge(b.id)) earned.push(b);
+      else locked.push(b);
+    }
+    for (let i = 0; i < earned.length; i++) html += row(earned[i].name, 'Earned', earned[i].desc, 'done');
+    for (let i = 0; i < locked.length; i++) {
+      const b = locked[i];
+      const hidden = b.secret;
+      html += row(hidden ? 'Secret badge' : b.name, 'Locked', hidden ? 'Hidden until you find it.' : b.desc, 'wait');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">Cards and games</div>';
+    const metN = crew.met ? Object.keys(crew.met).length : 0;
+    let gameSub = metN + ' astronaut' + (metN === 1 ? '' : 's') + ' met';
+    if (crew.passes) gameSub += ' · ' + crew.passes + ' fun pass' + (crew.passes === 1 ? '' : 'es');
+    if (crew.raceBest) gameSub += ' · race best ' + Number(crew.raceBest).toFixed(1) + 's';
+    if (crew.catchBest) gameSub += ' · star catcher ' + crew.catchBest;
+    html += '<div class="j-list">' + row('Crew record', metN ? 'In the log' : 'None yet', gameSub, metN ? 'done' : 'wait');
+    cardIds.sort(function (a, b) { return (cards[a].n || 0) - (cards[b].n || 0); });
+    if (!cardIds.length) html += '<div class="j-empty">No knowledge cards yet. Look for the amber light and talk to an astronaut.</div>';
+    for (let i = 0; i < cardIds.length; i++) {
+      const c = cards[cardIds[i]];
+      html += row(c.title || pretty(cardIds[i]), c.rarity || 'card', (c.from ? 'From ' + c.from + ' · ' : '') + '#' + (c.n || i + 1), 'done');
+    }
+    const examIds = Object.keys(crew.exams || {});
+    for (let i = 0; i < examIds.length; i++) {
+      const ex = crew.exams[examIds[i]] || {};
+      const stn = G.STATIONS[examIds[i]];
+      html += row((stn ? stn.name : pretty(examIds[i])) + ' exam', ex.passed ? 'Passed' : 'Tried', 'Best ' + (ex.best || 0) + '/3', ex.passed ? 'done' : '');
+    }
+    html += '</div>';
+
+    html += '<div class="j-sec">Quizzes <span>' + quizRight + '/' + quizTries + ' correct</span></div>';
+    if (!quizIds.length) html += '<div class="j-empty">No quizzes answered yet.</div>';
+    else {
+      html += '<div class="j-list">';
+      for (let i = 0; i < quizIds.length; i++) {
+        const q = G.QUESTIONS.find(function (item) { return item.id === quizIds[i]; });
+        const rec = st.quizStats[quizIds[i]];
+        html += row(q ? q.text : pretty(quizIds[i]), (rec.correct || 0) + '/' + (rec.attempts || 0), q ? pretty(q.topic) : '', rec.correct ? 'done' : '');
+      }
+      html += '</div>';
+    }
+
+    const subEl = U.el('journey-sub');
+    if (subEl) subEl.textContent = nextRank ? (nextRank.xp - st.xp) + ' XP to ' + nextRank.name : 'Highest rank reached';
+    U.el('journey-body').innerHTML = html;
+    showScreen('journey-screen');
   }
 
   function bindMenus() {
@@ -109,6 +312,28 @@ G.Game = (function () {
       G.Audio.play('click');
       G.Guide.open();
     };
+    const explorerCard = U.el('menu-explorer-card');
+    if (explorerCard) {
+      explorerCard.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('button')) return;
+        if (!G.Save.get().profile) return;
+        G.Audio.play('click');
+        openJourney();
+      });
+      explorerCard.addEventListener('keydown', function (e) {
+        if (e.code !== 'Enter' && e.code !== 'Space') return;
+        if (!G.Save.get().profile) return;
+        e.preventDefault();
+        G.Audio.play('click');
+        openJourney();
+      });
+    }
+    const journeyClose = U.el('btn-journey-close');
+    if (journeyClose) journeyClose.onclick = function () { G.Audio.play('click'); closeJourney(); };
+    const journeyScreen = U.el('journey-screen');
+    if (journeyScreen) journeyScreen.addEventListener('click', function (e) {
+      if (e.target === journeyScreen) { G.Audio.play('click'); closeJourney(); }
+    });
     U.el('btn-profile-back').onclick = function () {
       G.Audio.play('click');
       showScreen('menu-screen');
@@ -181,6 +406,14 @@ G.Game = (function () {
 
   function bindKeys() {
     window.addEventListener('keydown', function (e) {
+      if (e.code === 'Escape') {
+        const journey = U.el('journey-screen');
+        if (journey && !journey.classList.contains('hidden')) {
+          G.Audio.play('click');
+          closeJourney();
+          return;
+        }
+      }
       if (mode !== 'play') return;
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
       switch (e.code) {
@@ -351,7 +584,7 @@ G.Game = (function () {
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
   }
   function showScreen(id) {
-    ['menu-screen', 'profile-screen', 'briefing-screen', 'report-screen', 'credits-screen'].forEach(function (s) {
+    ['menu-screen', 'profile-screen', 'briefing-screen', 'report-screen', 'credits-screen', 'journey-screen'].forEach(function (s) {
       U.hide(s);
     });
     // Close any side panels left open from gameplay
@@ -396,6 +629,7 @@ G.Game = (function () {
     G.Ship.activate();
     G.Audio.unlock();
     G.Audio.startMusic('earth');
+    if (G.FX && G.FX.wake) G.FX.wake();
     const st = G.Save.get();
     if (!isContinue || !briefingShown) {
       briefingShown = true;
@@ -802,8 +1036,8 @@ G.Game = (function () {
     const dt = Math.min(0.05, (now - clock.last) / 1000);
     clock.last = now;
     if (!G.World.isReady()) return;
-    G.World.update(dt);
     if (mode === 'play') {
+      G.World.update(dt);
       let info = null;
       if (landed) {
         info = G.Rover.update(dt);
@@ -856,9 +1090,17 @@ G.Game = (function () {
       if (posSaveTimer <= 0) { posSaveTimer = 5; saveWorldPos(); }
       if (Math.random() < dt * 4) G.Missions.checkArrival(G.Ship.position(), landed ? G.World.terrainBody : null);
       if (Math.random() < dt * 0.002) G.Save.save();
+      G.World.render();
     } else {
       G.Audio.engine(null, 0, false, dt);
-      G.Spacecraft.update(dt);
+      menuHold += dt;
+      const budget = document.body.classList.contains('touch') ? 0.08 : 0.05;
+      if (menuHold < budget) return;
+      const stepDt = Math.min(0.12, menuHold);
+      menuHold = 0;
+      if (G.World.updateLite) G.World.updateLite(stepDt);
+      else G.World.update(stepDt);
+      if (G.Spacecraft && G.Spacecraft.update) G.Spacecraft.update(stepDt);
       const cam = G.World.camera;
       const t = now * 0.00003;
       const earth = G.World.bodies['earth'];
@@ -871,8 +1113,9 @@ G.Game = (function () {
         cam.lookAt(earth.worldPos.x - Math.sin(t) * 22, 0, earth.worldPos.z + Math.cos(t) * 22);
         if (cam.fov !== 55) { cam.fov = 55; cam.updateProjectionMatrix(); }
       }
+      if (G.World.renderDirect) G.World.renderDirect();
+      else G.World.render();
     }
-    G.World.render();
   }
 
   function openReport() {
