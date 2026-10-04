@@ -80,7 +80,9 @@ body.reduced-motion #fx-scanlines { display: none; }
 #boot-log .ok { color: var(--green); }
 #boot-log .warn { color: var(--amber); }
 .boot-skip { display: none; }
-.boot-prompt { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0 !important; white-space: nowrap; }
+body:not(.in-game) .in-game-only { display: none; }
+#m-settings b { display: block; }
+.boot-prompt { position: absolute; inset: 0; width: max-content; height: max-content; max-width: 90vw; transform: none; margin: auto !important; white-space: nowrap; z-index: 4; }
 #boot-log div { line-height: 1.35 !important; font-size: clamp(10px, 2.6vh, 15px); }
 @media (max-width: 900px) { #menu-screen .terminal-actions { display: none !important; } #menu-screen .menu-side-terminal { min-width: 0 !important; max-width: 190px !important; } #menu-screen .explorer-card .terminal-head { display: none; } }
 #boot-kora { position: absolute; right: 6vw; bottom: 8vh; width: min(42vh, 320px); opacity: 0; pointer-events: none; text-align: center; }
@@ -1835,3 +1837,27 @@ body.touch .holo-card, body.touch .side-panel, body.touch .mfd, body.touch #kora
 body.touch .holo-card::before, body.touch .holo-card::after, body.touch #kora-transcript::before, body.touch #dashboard::before, body.touch .holo-scan-line { animation: none; }
 body.touch .logo-year.holo-text::before, body.touch .logo-year.holo-text::after { animation: none; mix-blend-mode: normal; }
 body.touch .fun-grid .fun-art i, body.touch .ga-dust { animation-duration: 3s; }
+
+/* compact top-left HUD cards */
+#hud-destination.hud-chip { min-width: 0; padding: 3px 26px 3px 9px; position: relative; --cut: 6px; }
+#hud-destination .hud-label { font-size: 8px; letter-spacing: 2px; }
+#hud-destination #hud-dest-name { font-size: 11px; letter-spacing: 0.5px; }
+#hud-destination .hud-sub { display: none; }
+#btn-hud-menu { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); width: 20px; height: 20px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(56, 225, 255, 0.12); border: 1px solid var(--line); color: var(--cyan); cursor: pointer; pointer-events: auto; }
+#btn-hud-menu .ic { width: 13px; height: 13px; }
+#btn-hud-menu:active { background: rgba(56, 225, 255, 0.35); }
+#hud-objective.holo-card { padding: 5px 9px; max-width: 250px; --cut: 7px; }
+#hud-objective .objective-title { font-size: 8px; letter-spacing: 2px; }
+#hud-objective #objective-text { font-size: 11px; margin: 1px 0 2px; }
+#hud-objective #objective-steps { font-size: 10.5px; line-height: 1.3; }
+#hud-objective .objective-nav { font-size: 10px; margin-top: 3px; padding-top: 3px; }
+body.touch #hud-objective { max-width: 30vw; padding: 4px 8px; }
+body.touch #hud-destination.hud-chip { padding: 2px 24px 2px 8px; }
+body #hud-objective #objective-steps { font-size: 9.5px; line-height: 1.25; }
+body #hud-objective #objective-text { font-size: 10.5px; }
+body #hud-objective .objective-title { font-size: 7.5px; }
+body.touch #hud-objective { max-width: 28vw; }
+
+#hud-destination.hud-chip { padding-right: 58px; }
+#btn-hud-menu { width: auto; height: 20px; padding: 0 5px; gap: 3px; right: 3px; }
+#btn-hud-menu b { font: 700 8px var(--font-display); letter-spacing: 1px; }

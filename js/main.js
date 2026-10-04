@@ -73,7 +73,7 @@ G.Game = (function () {
             '<div class="exp-rank">' + G.Codex.esc(rName) + '</div>' +
             '<div class="exp-stats">' +
               '<span><b>' + xpVal + '</b><i>XP</i></span>' +
-              '<span><b>' + (st.missionIndex + 1) + '/' + G.MISSIONS.length + '</b><i>MISSION</i></span>' +
+              '<span><b>' + (Math.min(st.missionIndex + 1, G.MISSIONS.length)) + '/' + G.MISSIONS.length + '</b><i>MISSION</i></span>' +
               '<span><b>' + codexCount + '</b><i>CODEX</i></span>' +
             '</div>' +
           '</div>' +
@@ -116,7 +116,8 @@ G.Game = (function () {
     };
     U.el('btn-profile-done').onclick = function () {
       G.Audio.play('success');
-      const name = U.el('profile-name').value.trim() || 'Explorer';
+      let name = U.el('profile-name').value.trim() || 'Explorer';
+      if (G.Safety.unsafe(name)) { name = 'Explorer'; G.UI.notify('Please choose a friendly explorer name', 'info'); }
       const choices = G.UI.getProfileChoices();
       G.Save.setProfile({ name: name, avatar: choices.avatar, accent: choices.accent, helmet: choices.helmet, badge: choices.badge });
       showBriefing();
@@ -126,12 +127,13 @@ G.Game = (function () {
       startPlay(false);
     };
     U.el('btn-report-submit').onclick = submitReport;
+    U.el('btn-credits-roam').onclick = function () {
+      G.Audio.play('click');
+      startPlay(true);
+    };
     U.el('btn-credits-menu').onclick = function () {
       G.Audio.play('click');
       U.hide('hud');
-      const profile = G.Save.get().profile;
-      G.Save.wipe();
-      if (profile) G.Save.setProfile(profile);
       showScreen('menu-screen');
       updateMenuProfile();
       mode = 'menu';
@@ -154,7 +156,27 @@ G.Game = (function () {
     U.el('btn-journal').onclick = function () { G.Journal.open(); };
     U.el('btn-kora').onclick = function () { G.UI.toggleKora(); };
     U.el('hud-kora-mini').onclick = function () { G.Holo.poke(); G.UI.toggleKora(); };
+    U.el('btn-hud-settings').onclick = function () { U.show('settings-panel'); };
+    U.el('btn-hud-menu').onclick = function () { G.Audio.play('click'); exitToMenu(); };
 
+  }
+
+  // Saves progress and returns to the title screen; Resume Mission puts the explorer back exactly where they were.
+  function exitToMenu() {
+    if (mode !== 'play') return;
+    saveWorldPos();
+    G.Save.save();
+    if (G.Ship.isJump()) G.Ship.setJump(false);
+    if (G.Coach && G.Coach.stop) G.Coach.stop();
+    G.Audio.stopSpeak();
+    G.Audio.engine(null, 0, false, 0);
+    U.hide('settings-panel');
+    U.hide('hud');
+    mode = 'menu';
+    G.Ship.deactivate();
+    G.Rover.hide();
+    showScreen('menu-screen');
+    updateMenuProfile();
   }
 
   function bindKeys() {
@@ -177,6 +199,8 @@ G.Game = (function () {
           else if (!U.el('scan-panel').classList.contains('hidden')) G.UI.closeScanPanel();
           else if (!U.el('npc-panel').classList.contains('hidden')) G.UI.closeNpc();
           else if (!U.el('station-panel').classList.contains('hidden')) G.UI.closeStation();
+          else if (!U.el('settings-panel').classList.contains('hidden')) U.hide('settings-panel');
+          else U.show('settings-panel');
           break;
       }
       G.Rover.down(e);
@@ -335,6 +359,7 @@ G.Game = (function () {
       U.hide(p);
     });
     koraOpenCleanup();
+    document.body.classList.toggle('in-game', !id);
     if (id) U.show(id);
     if (id === 'menu-screen') G.Audio.startMusic('menu');
   }
@@ -376,7 +401,9 @@ G.Game = (function () {
       briefingShown = true;
       G.Missions.start();
     } else {
-      G.UI.koraSay('Welcome back, ' + st.profile.name + '. Resuming expedition. Current mission: ' + (G.Missions.current() ? G.Missions.current().title : 'Complete'));
+      G.UI.koraSay(G.Missions.current()
+        ? 'Welcome back, ' + st.profile.name + '. Resuming expedition. Current mission: ' + G.Missions.current().title
+        : 'All missions complete, ' + st.profile.name + '. The Solar System is yours \u2014 fly anywhere, land anywhere, and keep scanning. Open the map with M to choose a destination.');
     }
     G.UI.updateObjective();
     G.UI.updateHUD();
@@ -384,12 +411,14 @@ G.Game = (function () {
     G.Ship.setFirstMoveCb(G.Missions.onMove);
     clearTimeout(startPlay._guide);
     startPlay._guide = setTimeout(function () {
+      if (mode !== 'play' || landed) return;
       const co = G.Save.get().coach || (G.Save.get().coach = {});
-      if (mode !== 'play' || co.flight || landed) return;
+      if (co.flight) return;
       co.flight = true;
       G.Save.save();
-      G.UI.koraSay(G.UI.controlsGuide(false));
-    }, 9000);
+      // The interactive coach replaces the one-line voice tip.
+      if (!G.Coach.ship()) G.UI.koraSay(G.UI.controlsGuide(false));
+    }, 1500);
     // Restore the explorer's exact position when continuing a saved expedition.
     const wp = isContinue ? G.Save.get().worldPos : null;
     if (wp && wp.landed && wp.body && G.World.bodies[wp.body] && G.World.bodies[wp.body].def.type !== 'star') {
@@ -441,10 +470,22 @@ G.Game = (function () {
       }
       const bp = G.World.bodyPosition(step.target);
       if (bp) return bp;
-      const pois = G.World.pois;
+      const pois = G.World.pois, from = landed ? G.Rover.position() : G.Ship.position();
+      let best = null, bd = Infinity;
       for (let i = 0; i < pois.length; i++) {
-        if (pois[i].kind === step.target || pois[i].id === step.target) return pois[i].obj.position;
+        const p = pois[i];
+        if (p.kind !== step.target && p.id !== step.target) continue;
+        const d = (p.scanned ? 1e6 : 0) + from.distanceTo(p.obj.position);
+        if (d < bd) { bd = d; best = p.obj.position; }
       }
+      if (best) return best;
+      const an = G.Sectors.anomalies();
+      for (let i = 0; i < an.length; i++) {
+        if (an[i].kind === step.target || an[i].id === step.target) return an[i].obj.position;
+      }
+      // Surface targets are not built yet from orbit: point at the mission's world instead.
+      const m = G.Missions.current();
+      if (!landed && m && m.location) return G.World.bodyPosition(m.location);
     }
     return null;
   }
@@ -462,6 +503,7 @@ G.Game = (function () {
     if (course) { label = course.label; radius = course.radius; }
     else if (step) {
       if (step.target === 'satellite') label = 'Training Satellite';
+      else if (step.type === 'report') label = 'Mission Control · Earth';
       else if (G.PLANETS[step.target]) { label = G.PLANETS[step.target].name; radius = G.PLANETS[step.target].radius; }
       else if (G.STATIONS[step.target]) label = G.STATIONS[step.target].name;
       else {
@@ -488,48 +530,67 @@ G.Game = (function () {
     f.classList.remove('active');
   }
 
-  function doScan() {
-    if (mode !== 'play' || G.Scanner.isScanning()) return;
-    let target = null;
-    if (landed) {
-      const near = G.World.nearestPOI(G.Rover.position(), 22);
-      if (near) target = near.poi;
-    } else {
+  // Among everything in range, prefer what the crosshair is closest to, so a small object beside a big one can be picked.
+  function pickScanTarget() {
+    const from = landed ? G.Rover.position() : G.Ship.position();
+    const lim0 = landed ? 32 : SCAN_R;
+    const cands = [];
+    function add(t, pos, rad, dist, lim) {
+      if (dist < lim) cands.push({ t: t, pos: pos, rad: rad || 1, dist: Math.max(dist, 0.1) });
+    }
+    const pois = G.World.pois;
+    for (let i = 0; i < pois.length; i++) {
+      const p = pois[i];
+      add(p, p.obj.position, p.radius, from.distanceTo(p.obj.position), p.scanRange ? Math.max(lim0, p.scanRange) : lim0);
+    }
+    if (!landed) {
       const sat = G.World.satellite();
-      if (sat) {
-        const d = G.Ship.position().distanceTo(sat.position);
-        if (d < SCAN_R) target = { obj: sat, id: 'satellite', kind: 'satellite', name: 'Training Satellite', radius: 4, scanned: false };
+      if (sat) add({ obj: sat, id: 'satellite', kind: 'satellite', name: 'Training Satellite', radius: 4, scanned: false }, sat.position, 4, from.distanceTo(sat.position), SCAN_R);
+      const an = G.Sectors.anomalies();
+      for (let i = 0; i < an.length; i++) {
+        const a = an[i];
+        const d = from.distanceTo(a.obj.position) - (a.surface || 0);
+        if (a.range && d >= a.range) continue;
+        add(a, a.obj.position, a.radius, d, a.scanRange ? Math.max(SCAN_R, a.scanRange) : SCAN_R);
       }
-      if (!target) {
-        const near = G.World.nearestPOI(G.Ship.position(), SCAN_R);
-        if (near) target = near.poi;
-      }
-      if (!target) {
-        const an = G.Sectors.nearestAnomaly(G.Ship.position(), SCAN_R);
-        if (an) target = an.poi;
-      }
-      if (!target) {
-        // Orbit scan: read a nearby planet, moon or star from the ship
-        const nb = G.World.nearestBody(G.Ship.position(), 1e9);
-        if (nb && nb.dist < nb.body.def.radius + SCAN_R) {
-          const id = nb.body.def.id;
-          const info = G.Scanner.infoFor(id);
-          if (info) {
-            target = {
-              obj: nb.body.group, id: id, kind: id, name: info.name,
-              radius: nb.body.def.radius,
-              scanned: G.Save.isPoiScanned('orbit', id),
-              orbit: true
-            };
-          }
-        }
+      const nb = G.World.nearestBody(from, 1e9);
+      if (nb && nb.dist < nb.body.def.radius + SCAN_R) {
+        const id = nb.body.def.id, info = G.Scanner.infoFor(id);
+        if (info) add({
+          obj: nb.body.group, id: id, kind: id, name: info.name, radius: nb.body.def.radius,
+          scanned: G.Save.isPoiScanned('orbit', id), orbit: true
+        }, nb.body.worldPos, nb.body.def.radius, nb.dist, nb.body.def.radius + SCAN_R);
       }
     }
+    if (!cands.length) return null;
+    const cam = G.World.camera, fwd = new THREE.Vector3();
+    cam.getWorldDirection(fwd);
+    const cp = new THREE.Vector3();
+    cam.getWorldPosition(cp);
+    let best = null, bs = Infinity;
+    for (let i = 0; i < cands.length; i++) {
+      const c = cands[i];
+      const to = c.pos.clone().sub(cp), dc = to.length() || 1;
+      const ang = Math.acos(Math.max(-1, Math.min(1, to.dot(fwd) / dc)));
+      // Targets outside a narrow cone fall back to plain distance ranking.
+      // Huge deep-space objects (galaxies, nebulae) surround you, so they must not outrank nearby small objects.
+      const deep = c.t.deep ? 1 : 0;
+      const cone = Math.max(0.2, deep ? 0 : Math.atan(c.rad / dc));
+      const score = ang <= cone ? ang * 100 + c.dist * 0.01 + deep * 30 + (c.t.scanned ? 4 : 0) : 1000 + c.dist + deep * 5000 + (c.t.scanned ? 500 : 0);
+      if (score < bs) { bs = score; best = c.t; }
+    }
+    return best;
+  }
+
+  function doScan() {
+    if (mode !== 'play' || G.Scanner.isScanning()) return;
+    const target = pickScanTarget();
     if (!target) {
       G.UI.notify('No scannable object in range', 'info');
       return;
     }
     if (target.scanned) {
+      G.Missions.onScan(target);
       G.UI.notify('Already scanned: ' + (target.name || 'object'), 'info');
       G.UI.openScanPanel(target);
       return;
@@ -540,12 +601,12 @@ G.Game = (function () {
     }
   }
 
-  const SCAN_R = 30;
+  const SCAN_R = 45;
 
   function scanReach(poi) {
     const from = landed ? G.Rover.position() : G.Ship.position();
     const b = G.World.bodies[poi.id];
-    let surf = poi.surface || 0, lim = landed ? 22 : SCAN_R;
+    let surf = poi.surface || 0, lim = landed ? 32 : SCAN_R;
     if (!landed && b && poi.orbit && !poi.craft && !poi.site) surf = b.def.radius;
     if (poi.scanRange) lim = Math.max(lim, poi.scanRange);
     return { dist: from.distanceTo(poi.obj.position) - surf, lim: lim };
@@ -874,6 +935,8 @@ G.Game = (function () {
   }
 
   function showCredits() {
+    // Keep the explorer's position so Free Roam and Resume continue from here.
+    if (landed || mode === 'play') saveWorldPos();
     mode = 'credits';
     U.hide('hud');
     showScreen('credits-screen');

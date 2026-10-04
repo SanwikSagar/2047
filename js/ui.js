@@ -157,8 +157,19 @@ G.UI = (function () {
       : 'Flight controls: W and S for thrust, A and D or drag the mouse to steer, arrow keys to pitch, Shift to boost, Space to brake, R and F to rise or sink. Press Q to scan, E to land or dock, M for the map, B to go home, and H for the jump drive beyond Neptune.';
   }
 
+  // Returns true when the message was blocked and KORA has already replied.
+  function blockUnsafe(text) {
+    if (!G.Safety.unsafe(text)) return false;
+    addKoraMessage(G.Safety.clean(text), 'player');
+    G.Audio.play('error');
+    if (G.Holo) G.Holo.mood('think', 2);
+    setTimeout(function () { koraSay(G.Safety.needsCare(text) ? G.Safety.careLine : G.Safety.redirect()); }, 350);
+    return true;
+  }
+
   function sendKora(text) {
     if (!text || !text.trim()) return;
+    if (blockUnsafe(text)) return;
     addKoraMessage(text, 'player');
     if (/\b(guide|tutorial|how to play)\b/i.test(text)) {
       koraSay('Opening the Explorer Guide for you!');
@@ -243,6 +254,7 @@ G.UI = (function () {
       btn.classList.add('listening');
       U.show('kora-listening');
       const ok = G.Voice.start(function (transcript) {
+        if (blockUnsafe(transcript)) return;
         addKoraMessage(transcript, 'player');
         answer(transcript);
       }, function () {
@@ -261,8 +273,8 @@ G.UI = (function () {
     const m = G.Missions.current();
     const step = G.Missions.currentStep();
     if (!m) {
-      U.el('objective-text').textContent = 'Expedition Complete';
-      U.el('objective-steps').innerHTML = '';
+      U.el('objective-text').textContent = 'Free Roam';
+      U.el('objective-steps').innerHTML = '<div class="step-active">&#9654; Explore anywhere \u2014 scan objects, land on worlds, meet astronauts</div>';
       return;
     }
     U.el('objective-text').textContent = m.title;
@@ -613,7 +625,7 @@ G.UI = (function () {
       body.innerHTML = '<div class="npc-dialogue"><span class="npc-name-tag">' + npc.name + ':</span> ' + npc.greeting + '</div>';
       body.appendChild(opts);
       G.UI.notify('Speaking with ' + npc.name, 'info');
-      G.Missions.onNpc();
+      G.Missions.onNpc(npc.id);
     };
     opts.appendChild(b2);
     body.appendChild(opts);
@@ -648,7 +660,7 @@ G.UI = (function () {
           done.className = 'npc-option';
           done.textContent = 'Thank you';
           done.onclick = function () {
-            G.Missions.onNpc();
+            G.Missions.onNpc(npc.id);
             closeNpc();
             if (currentStation) renderStation();
           };
@@ -670,6 +682,10 @@ G.UI = (function () {
     U.hide('npc-panel');
   }
 
+  function refreshStation() {
+    if (currentStation && !U.el('station-panel').classList.contains('hidden')) renderStation();
+  }
+
   function openStation(station) {
     currentStation = station;
     U.show('station-panel');
@@ -684,7 +700,7 @@ G.UI = (function () {
     const body = U.el('station-body');
     let html = '<div class="npc-dialogue">' + s.def.desc + '</div>';
     html += '<div class="station-service"><div><div class="ss-name">Refuel</div><div class="ss-desc">Fill your fuel tanks (current: ' + Math.round(st.fuel) + '%)</div></div>';
-    html += '<button id="ss-refuel" ' + (st.fuel > 95 ? 'disabled' : '') + '>Refuel</button></div>';
+    html += '<button id="ss-refuel" ' + (st.fuel > 95 && !(G.Missions.currentStep() && G.Missions.currentStep().type === 'refuel') ? 'disabled' : '') + '>Refuel</button></div>';
     html += '<div class="station-service"><div><div class="ss-name">Recharge</div><div class="ss-desc">Restore ship power (current: ' + Math.round(st.power) + '%)</div></div>';
     html += '<button id="ss-recharge" ' + (st.power > 95 ? 'disabled' : '') + '>Recharge</button></div>';
     html += '<div class="station-service"><div><div class="ss-name">Rest</div><div class="ss-desc">Save your expedition progress</div></div>';
@@ -954,7 +970,7 @@ G.UI = (function () {
   }
 
   return {
-    notify: notify, discoveryToast: discoveryToast, koraSay: koraSay, koraVoice: koraVoice, deviceText: deviceText, controlsGuide: controlsGuide,
+    notify: notify, discoveryToast: discoveryToast, koraSay: koraSay, koraVoice: koraVoice, deviceText: deviceText, controlsGuide: controlsGuide, refreshStation: refreshStation,
     addKoraMessage: addKoraMessage,
     openKora: openKora, closeKora: closeKora, toggleKora: toggleKora,
     initKoraPanel: initKoraPanel,

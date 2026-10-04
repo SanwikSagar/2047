@@ -20,7 +20,7 @@ G.Audio = (function () {
       comp.threshold.value = MOBILE ? -20 : -14; comp.knee.value = 12; comp.ratio.value = MOBILE ? 6 : 4; comp.attack.value = 0.004; comp.release.value = 0.2;
       comp.connect(ctx.destination);
       masterGain = ctx.createGain(); masterGain.gain.value = MOBILE ? 1.7 : 1; masterGain.connect(comp);
-      reverb = ctx.createConvolver(); reverb.buffer = impulse(MOBILE ? 1.6 : 2.6, 2.4);
+      reverb = ctx.createConvolver(); reverb.buffer = impulse(MOBILE ? 1.0 : 2.6, 2.4);
       reverbSend = ctx.createGain(); reverbSend.gain.value = MOBILE ? 0.35 : 0.5;
       reverbSend.connect(reverb); reverb.connect(masterGain);
       musicGain = ctx.createGain(); musicGain.connect(masterGain);
@@ -264,7 +264,7 @@ G.Audio = (function () {
 
   function pad(freqs, t0, dur) {
     freqs.forEach(function (f, i) {
-      [-7, 7].forEach(function (det) {
+      (MOBILE ? [-5] : [-7, 7]).forEach(function (det) {
         const o = ctx.createOscillator(), g = ctx.createGain(), fl = ctx.createBiquadFilter();
         o.type = 'sawtooth'; o.frequency.value = f / 2; o.detune.value = det;
         fl.type = 'lowpass'; fl.frequency.setValueAtTime(500, t0); fl.frequency.linearRampToValueAtTime(1100, t0 + dur / 2); fl.frequency.linearRampToValueAtTime(500, t0 + dur);
@@ -280,7 +280,7 @@ G.Audio = (function () {
   function scheduleMusic() {
     if (!ctx || ctx.state !== 'running' || !musicMode) return;
     const m = MODES[musicMode] || MODES.deep, spb = 60 / m.bpm;
-    while (nextBeat < ctx.currentTime + 0.6) {
+    while (nextBeat < ctx.currentTime + (MOBILE ? 1.4 : 0.6)) {
       const bar = Math.floor(beat / 8), chord = m.chords[bar % m.chords.length], b = beat % 8;
       const t0 = nextBeat;
       if (b === 0) {
@@ -288,11 +288,11 @@ G.Audio = (function () {
         note({ f: semi(m.root, chord[0]) / 4, dur: spb * 7, vol: 0.12, a: 0.6, type: 'sine', delay: t0 - ctx.currentTime, out: musicGain });
       }
       const pattern = [0, 2, 1, 3, 2, 1, 3, 2];
-      if (Math.random() < (b % 2 === 0 ? 0.85 : 0.45)) {
+      if (Math.random() < (b % 2 === 0 ? 0.85 : (MOBILE ? 0.15 : 0.45))) {
         const s = chord[pattern[b]] + (bar % 2 && b > 4 ? 12 : 0);
         note({ f: semi(m.root, s) * 2, dur: spb * 1.6, vol: 0.05, a: 0.01, type: m.arp, cut: 2600, delay: t0 - ctx.currentTime, pan: (b % 2 ? 0.4 : -0.4), out: musicGain });
       }
-      if (b === 6 && Math.random() < 0.3) note({ f: semi(m.root, chord[3]) * 4, dur: spb * 3, vol: 0.02, a: 0.3, type: 'sine', delay: t0 - ctx.currentTime, out: musicGain });
+      if (b === 6 && !MOBILE && Math.random() < 0.3) note({ f: semi(m.root, chord[3]) * 4, dur: spb * 3, vol: 0.02, a: 0.3, type: 'sine', delay: t0 - ctx.currentTime, out: musicGain });
       nextBeat += spb; beat++;
     }
   }
@@ -304,7 +304,7 @@ G.Audio = (function () {
     musicMode = mode;
     beat = 0;
     nextBeat = ctx.currentTime + 0.1;
-    musicTimer = setInterval(scheduleMusic, 200);
+    musicTimer = setInterval(scheduleMusic, MOBILE ? 500 : 200);
     scheduleMusic();
   }
 
@@ -340,7 +340,7 @@ G.Audio = (function () {
     if (!vs.length) return;
     if (voiceChoice) {
       const chosen = vs.find(function (v) { return v.name === voiceChoice; });
-      if (chosen) { voice = chosen; voicePitch = 0.95; voiceListeners.forEach(function (f) { f(); }); return; }
+      if (chosen) { voice = chosen; voicePitch = 0.88; voiceListeners.forEach(function (f) { f(); }); return; }
     }
     const score = function (v) {
       const n = v.name + ' ' + (v.voiceURI || '');
@@ -358,7 +358,7 @@ G.Audio = (function () {
     vs.sort(function (a, b) { return score(b) - score(a); });
     voice = vs[0];
     // No male voice installed: deepen the default one.
-    voicePitch = score(voice) >= 30 ? 0.92 : 0.62;
+    voicePitch = score(voice) >= 30 ? 0.88 : 0.62;
     voiceListeners.forEach(function (f) { f(); });
   }
   if (window.speechSynthesis) {
@@ -386,7 +386,7 @@ G.Audio = (function () {
       if (i >= chunks.length) { if (onend) onend(); return; }
       const u = new SpeechSynthesisUtterance(chunks[i++].trim());
       if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-GB';
-      u.rate = rate || 1;
+      u.rate = 0.98;
       u.pitch = voicePitch;
       u.volume = Math.max(0.6, settings.sfx);
       u.onend = next;

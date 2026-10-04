@@ -4,7 +4,17 @@ window.G = window.G || {};
 (function () {
   const P = {
     flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
-    gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M18.5 5.5l-1.9 1.9M7.4 16.6l-1.9 1.9"/>',
+    gear: (function () {
+      // 8-tooth cog outline generated once.
+      let d = '';
+      for (let i = 0; i < 16; i++) {
+        const r = i % 2 ? 7.2 : 9.6, a0 = (i / 16) * Math.PI * 2 - 0.13, a1 = ((i + 1) / 16) * Math.PI * 2 - 0.13 - 0.0;
+        const p = function (a) { return (12 + Math.cos(a) * r).toFixed(2) + ' ' + (12 + Math.sin(a) * r).toFixed(2); };
+        d += (i ? 'L' : 'M') + p(a0 + 0.06) + 'L' + p(a1 - 0.06);
+      }
+      return '<path d="' + d + 'Z"/><circle cx="12" cy="12" r="3"/>';
+    })(),
+    menu: '<path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
     astronaut: '<path d="M12 3a6 6 0 0 0-6 6v2a6 6 0 0 0 12 0V9a6 6 0 0 0-6-6z"/><path d="M8.5 9.5h7v3a3.5 3.5 0 0 1-7 0z"/><path d="M5 21c0-3 3-5 7-5s7 2 7 5"/>',
     person: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
     station: '<path d="M12 7v10"/><rect x="3" y="9.5" width="6" height="5" rx="1"/><rect x="15" y="9.5" width="6" height="5" rx="1"/><path d="M9 12h6"/><circle cx="12" cy="12" r="1.6"/>',

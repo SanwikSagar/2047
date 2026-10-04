@@ -1360,8 +1360,8 @@ G.World = (function () {
   }
 
   function init(canvas) {
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !LOW_POWER, powerPreference: 'high-performance', precision: LOW_POWER ? 'mediump' : 'highp' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 1.75));
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: (window.devicePixelRatio || 1) <= 1.5 || !LOW_POWER, powerPreference: 'high-performance', precision: LOW_POWER ? 'mediump' : 'highp' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 2 : 1.75));
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.setClearColor(0x010207, 1);
     const scene = new THREE.Scene();
@@ -1428,7 +1428,14 @@ G.World = (function () {
 
     if (THREE.EffectComposer && THREE.UnrealBloomPass) {
       try {
-        composer = new THREE.EffectComposer(renderer);
+        // Multisampled target keeps edges smooth on the post-process path (WebGL2 only).
+        let rt;
+        if (renderer.capabilities.isWebGL2 && THREE.WebGLMultisampleRenderTarget) {
+          const pr = renderer.getPixelRatio();
+          rt = new THREE.WebGLMultisampleRenderTarget(window.innerWidth * pr, window.innerHeight * pr, { format: THREE.RGBAFormat });
+          rt.samples = LOW_POWER ? 2 : 4;
+        }
+        composer = new THREE.EffectComposer(renderer, rt);
         composer.addPass(new THREE.RenderPass(scene, camera));
         const div = LOW_POWER ? 4 : 2;
         bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth / div, window.innerHeight / div), LOW_POWER ? BLOOM * 0.8 : BLOOM, 0.5, 0.94);
@@ -1455,7 +1462,7 @@ G.World = (function () {
   // Adaptive resolution: trade pixels for frame rate on weaker devices.
   // Adaptive resolution: stays sharp (never below ~0.9 of CSS pixels unless the device truly struggles).
   const MAX_PR = Math.min(window.devicePixelRatio || 1, LOW_POWER ? 2 : 1.75), MIN_PR = LOW_POWER ? 0.85 : 0.85;
-  let prNow = Math.min(MAX_PR, LOW_POWER ? 1.5 : 1.75), frames = 0, frameT = performance.now();
+  let prNow = MAX_PR, frames = 0, frameT = performance.now();
   function adaptResolution() {
     frames++;
     const now = performance.now(), el = now - frameT;

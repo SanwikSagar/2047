@@ -17,6 +17,28 @@ G.Codex = (function () {
   };
 
   try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch (e) { cache = {}; }
+  Object.keys(cache).forEach(function (k) { const c = cache[k]; if (c && c.extract && G.Safety.unsafeContent(c.title, c.extract, c.description)) delete cache[k]; });
+
+  // Wikimedia serves any width on demand; ask for a small one so images stay light on phones.
+  const THUMB_W = 360;
+  function shrink(u) {
+    return typeof u === 'string' ? u.replace(/\/(\d+)px-/, function (m, w) { return +w > THUMB_W ? '/' + THUMB_W + 'px-' : m; }) : u;
+  }
+  Object.keys(cache).forEach(function (k) { if (cache[k] && cache[k].thumb) cache[k].thumb = shrink(cache[k].thumb); });
+
+  // Retry a failed image once, then hide it so no broken-image icon shows.
+  document.addEventListener('error', function (e) {
+    const im = e.target;
+    if (!im || im.tagName !== 'IMG' || !/^https:/.test(im.src)) return;
+    if (!im.dataset.retry) {
+      im.dataset.retry = '1';
+      const s = im.src;
+      setTimeout(function () { im.src = s; }, 1500);
+    } else im.style.visibility = 'hidden';
+  }, true);
+  document.addEventListener('load', function (e) {
+    if (e.target && e.target.tagName === 'IMG') e.target.style.visibility = '';
+  }, true);
 
   function persist() {
     const keys = Object.keys(cache);
@@ -52,7 +74,7 @@ G.Codex = (function () {
   function fetchSummary(lang, title) {
     return timeout(fetch('https://' + lang + '.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title.replace(/ /g, '_'))), 8000)
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { return (!j || j.type === 'disambiguation' || !j.extract || j.extract.length < 40) ? null : j; })
+      .then(function (j) { return (!j || j.type === 'disambiguation' || !j.extract || j.extract.length < 40 || G.Safety.unsafeContent(j.title, j.extract, j.description)) ? null : j; })
       .catch(function () { return null; });
   }
 
@@ -73,7 +95,7 @@ G.Codex = (function () {
           title: j.title,
           description: j.description || '',
           extract: j.extract,
-          thumb: safeUrl(j.thumbnail && j.thumbnail.source, 'upload.wikimedia.org') || safeUrl(j.thumbnail && j.thumbnail.source, 'thumb.wikimedia.org'),
+          thumb: shrink(safeUrl(j.thumbnail && j.thumbnail.source, 'upload.wikimedia.org') || safeUrl(j.thumbnail && j.thumbnail.source, 'thumb.wikimedia.org')),
           url: safeUrl(j.content_urls && j.content_urls.desktop && j.content_urls.desktop.page, host),
           source: lang === 'simple' ? 'Simple Wikipedia' : 'Wikipedia'
         };
@@ -89,7 +111,7 @@ G.Codex = (function () {
   function searchIn(lang, q, limit) {
     return timeout(fetch('https://' + lang + '.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=' + (limit || 3) + '&srsearch=' + encodeURIComponent(q)), 8000)
       .then(function (r) { return r.json(); })
-      .then(function (j) { online = true; return (j.query && j.query.search) ? j.query.search.map(function (s) { return s.title; }) : []; })
+      .then(function (j) { online = true; return (j.query && j.query.search) ? j.query.search.filter(function (s) { return !G.Safety.unsafeContent(s.title, s.snippet); }).map(function (s) { return s.title; }) : []; })
       .catch(function () { online = false; return []; });
   }
 
@@ -118,6 +140,7 @@ G.Codex = (function () {
 
   // Answer a free-form question with a short, live Wikipedia-sourced explanation.
   function ask(question, contextName, subject) {
+    if (G.Safety.unsafe(question)) return Promise.resolve(null);
     const q = question.replace(/[?!.]+$/, '').trim();
     const generic = contextName && /\b(it|its|this|that|here|there)\b/i.test(q);
     const query = (generic ? contextName + ' ' : '') + q;

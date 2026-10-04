@@ -25,12 +25,31 @@ G.Missions = (function () {
     } else {
       G.Save.save();
       G.UI.updateObjective();
+      G.UI.refreshStation();
       G.UI.notify('Objective updated', 'info');
       const nextStep = m.steps[st.missionStep];
       if (nextStep && nextStep.type === 'report') {
-        setTimeout(function () { G.Game.openReport(); }, 2000);
+        const openRep = function () {
+          const q = document.getElementById('quiz-panel');
+          if (q && !q.classList.contains('hidden')) { setTimeout(openRep, 1000); return; }
+          G.Game.openReport();
+        };
+        setTimeout(openRep, 2000);
       }
+      catchUp();
     }
+  }
+
+  function wasScanned(id) {
+    if (G.Save.isPoiScanned('orbit', id)) return true;
+    for (const b in G.PLANETS) if (G.Save.isPoiScanned(b, id)) return true;
+    return false;
+  }
+
+  // A scan step whose target was already scanned earlier would otherwise wait forever.
+  function catchUp() {
+    const step = currentStep();
+    if (step && step.type === 'scan' && wasScanned(step.target)) setTimeout(advance, 600);
   }
 
   function complete() {
@@ -83,17 +102,21 @@ G.Missions = (function () {
     G.Save.save();
     G.UI.updateObjective();
     if (m.questions && m.questions.length) {
-      setTimeout(function () {
+      // Wait until station/scan panels are closed so the quiz never opens underneath them.
+      const busy = function () {
+        return ['station-panel', 'scan-panel', 'npc-panel', 'map-panel', 'journal-panel', 'report-screen'].some(function (id) {
+          const e = document.getElementById(id); return e && !e.classList.contains('hidden');
+        }) || (G.Coach && G.Coach.active());
+      };
+      const tryQuiz = function () {
+        if (busy()) { setTimeout(tryQuiz, 1000); return; }
         G.Quiz.start(m.questions, function () {
           G.UI.notify('Knowledge check complete', 'good');
         });
-      }, 4000);
+      };
+      setTimeout(tryQuiz, 4000);
     }
-    if (!current()) {
-      setTimeout(function () {
-        G.Game.showCredits();
-      }, 6000);
-    }
+    // The credits screen is opened by submitReport(); a timer here would reopen it during Free Roam.
   }
 
   function awardBadgeWithToast(badgeId) {
@@ -124,8 +147,9 @@ G.Missions = (function () {
   }
 
   function onDock(stationId) {
-    const step = currentStep();
+    let step = currentStep();
     if (!step) return;
+    if (step.type === 'travel_body' && step.target === stationId) { advance(); step = currentStep(); if (!step) return; }
     if (step.type === 'dock' && step.target === stationId) {
       advance();
     }
@@ -153,6 +177,8 @@ G.Missions = (function () {
     }
     const b = G.World.bodies[step.target];
     if (b && pos.distanceTo(b.worldPos) < b.def.radius + 60) advance();
+    const sp = G.World.stationPosition(step.target);
+    if (sp && pos.distanceTo(sp) < 60) advance();
   }
 
   function onReturnShip() {
@@ -163,10 +189,10 @@ G.Missions = (function () {
     }
   }
 
-  function onNpc() {
+  function onNpc(id) {
     const step = currentStep();
     if (!step) return;
-    if (step.type === 'npc') {
+    if (step.type === 'npc' && (!id || step.target === id)) {
       advance();
     }
   }

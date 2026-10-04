@@ -10,7 +10,7 @@
 <title>2047: The Great Space Expedition</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap">
-<link rel="stylesheet" href="css/style.css?v=81">
+<link rel="stylesheet" href="css/style.css?v=95">
 </head>
 <body>
 <div id="game-container">
@@ -99,6 +99,7 @@
           <span class="hud-label">LOCATION</span>
           <span id="hud-dest-name">Earth Orbit</span>
           <span id="hud-sector" class="hud-sub">SECTOR 00:00</span>
+          <button id="btn-hud-menu" title="Save &amp; return to Lobby"><i data-ic="menu"></i><b>LOBBY</b></button>
         </div>
         <div id="hud-compass"><div id="compass-tape"></div><div class="compass-caret"></div></div>
         <div id="hud-rank" class="hud-chip right">
@@ -167,6 +168,7 @@
               <button class="action-btn" id="btn-jump" title="Jump drive, beyond Neptune (H)"><span class="action-icon">&#187;</span><span class="action-label">Jump</span><span class="action-key">H</span></button>
               <button class="action-btn" id="btn-journal" title="Journal (J)"><span class="action-icon">&#9636;</span><span class="action-label">Log</span><span class="action-key">J</span></button>
               <button class="action-btn" id="btn-kora" title="Talk to KORA (K)"><span class="action-icon">&#9672;</span><span class="action-label">Comms</span><span class="action-key">K</span></button>
+              <button class="action-btn" id="btn-hud-settings" title="Settings &amp; Main Menu (Esc)"><span class="action-icon" data-ic="gear"></span><span class="action-label">Menu</span><span class="action-key">Esc</span></button>
             </div>
           </div>
         </div>
@@ -213,7 +215,7 @@
           <button id="m-jump" title="Jump drive (beyond Neptune)"><i>&#187;</i><b>JUMP</b></button>
           <button id="m-journal" title="Journal"><i>&#9636;</i><b>LOG</b></button>
           <button id="m-talk" title="Talk to KORA"><i>&#9672;</i><b>COMMS</b></button>
-          <button id="m-settings" title="Settings"><i data-ic="gear"></i></button>
+          <button id="m-settings" title="Settings &amp; Main Menu"><i data-ic="gear"></i><b>MENU</b></button>
         </div>
         <div id="radar-corner" title="Open map"><canvas width="200" height="200"></canvas><span class="rc-label">TAP FOR MAP</span></div>
         <div id="touch-hint">DRAG THE SCREEN TO LOOK &amp; STEER</div>
@@ -474,6 +476,7 @@
         <button class="panel-close" data-close="settings-panel">&times;</button>
       </div>
       <div class="settings-body">
+        <div class="setting-row in-game-only"><label>Leave Game</label><button class="toggle" id="set-menu">Save &amp; Main Menu</button></div>
         <div class="setting-row"><label>Explorer Guide</label><button class="toggle" id="set-guide">Open Tutorial</button></div>
         <div class="setting-row"><label>KORA Voice</label><button class="toggle" id="set-voice">On</button></div>
         <div class="setting-row"><label>Voice Choice</label><select id="set-voicepick"></select></div>
@@ -539,7 +542,8 @@
         <div id="credits-text"></div>
         <div class="credits-kora">"Mission complete. You started by asking where the Moon was. You ended by explaining why it has craters. Acceptable progress."</div>
         <div class="credits-kora-name">&mdash; KORA</div>
-        <button class="menu-btn primary" id="btn-credits-menu">Return to Main Menu</button>
+        <button class="menu-btn primary" id="btn-credits-roam">Keep Exploring (Free Roam)</button>
+        <button class="menu-btn" id="btn-credits-menu">Return to Main Menu</button>
       </div>
     </div>
 
@@ -573,42 +577,43 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="js/utils.js?v=81"></script>
-<script src="js/icons.js?v=81"></script>
-<script src="js/data/planets.js?v=81"></script>
-<script src="js/data/knowledge.js?v=81"></script>
-<script src="js/data/questions.js?v=81"></script>
-<script src="js/data/missions.js?v=81"></script>
-<script src="js/data/koraLines.js?v=81"></script>
-<script src="js/data/npc.js?v=81"></script>
-<script src="js/data/terrains.js?v=81"></script>
-<script src="js/data/spacecraft.js?v=81"></script>
-<script src="js/data/deep.js?v=81"></script>
-<script src="js/audio.js?v=81"></script>
-<script src="js/voice.js?v=81"></script>
-<script src="js/save.js?v=81"></script>
-<script src="js/codex.js?v=81"></script>
-<script src="js/kora.js?v=81"></script>
-<script src="js/world.js?v=81"></script>
-<script src="js/sectors.js?v=81"></script>
-<script src="js/spacecraft.js?v=81"></script>
-<script src="js/deepspace.js?v=81"></script>
-<script src="js/ship.js?v=81"></script>
-<script src="js/rover.js?v=81"></script>
-<script src="js/scanner.js?v=81"></script>
-<script src="js/missions.js?v=81"></script>
-<script src="js/journal.js?v=81"></script>
-<script src="js/quiz.js?v=81"></script>
-<script src="js/holo.js?v=81"></script>
-<script src="js/hud.js?v=81"></script>
-<script src="js/starmap.js?v=81"></script>
-<script src="js/touch.js?v=81"></script>
-<script src="js/ui.js?v=81"></script>
-<script src="js/fx.js?v=81"></script>
-<script src="js/crew.js?v=81"></script>
-<script src="js/surfacemissions.js?v=81"></script>
-<script src="js/games.js?v=81"></script>
-<script src="js/guide.js?v=81"></script>
-<script src="js/main.js?v=81"></script>
+<script src="js/utils.js?v=95"></script>
+<script src="js/safety.js?v=95"></script>
+<script src="js/icons.js?v=95"></script>
+<script src="js/data/planets.js?v=95"></script>
+<script src="js/data/knowledge.js?v=95"></script>
+<script src="js/data/questions.js?v=95"></script>
+<script src="js/data/missions.js?v=95"></script>
+<script src="js/data/koraLines.js?v=95"></script>
+<script src="js/data/npc.js?v=95"></script>
+<script src="js/data/terrains.js?v=95"></script>
+<script src="js/data/spacecraft.js?v=95"></script>
+<script src="js/data/deep.js?v=95"></script>
+<script src="js/audio.js?v=95"></script>
+<script src="js/voice.js?v=95"></script>
+<script src="js/save.js?v=95"></script>
+<script src="js/codex.js?v=95"></script>
+<script src="js/kora.js?v=95"></script>
+<script src="js/world.js?v=95"></script>
+<script src="js/sectors.js?v=95"></script>
+<script src="js/spacecraft.js?v=95"></script>
+<script src="js/deepspace.js?v=95"></script>
+<script src="js/ship.js?v=95"></script>
+<script src="js/rover.js?v=95"></script>
+<script src="js/scanner.js?v=95"></script>
+<script src="js/missions.js?v=95"></script>
+<script src="js/journal.js?v=95"></script>
+<script src="js/quiz.js?v=95"></script>
+<script src="js/holo.js?v=95"></script>
+<script src="js/hud.js?v=95"></script>
+<script src="js/starmap.js?v=95"></script>
+<script src="js/touch.js?v=95"></script>
+<script src="js/ui.js?v=95"></script>
+<script src="js/fx.js?v=95"></script>
+<script src="js/crew.js?v=95"></script>
+<script src="js/surfacemissions.js?v=95"></script>
+<script src="js/games.js?v=95"></script>
+<script src="js/guide.js?v=95"></script>
+<script src="js/main.js?v=95"></script>
 </body>
 </html>

@@ -508,6 +508,12 @@ G.Crew = (function () {
     return { id: 'w:' + title, title: title, text: '', wiki: title, rarity: 'legendary', qi: qi, xp: 25 };
   }
 
+  // The GreenMan easter-egg card is a secret keepsake: it never counts toward collection totals or card badges.
+  function regularCount() {
+    const c = S().cards;
+    return Object.keys(c).filter(function (id) { return !c[id].secret; }).length;
+  }
+
   function giveCard(c) {
     const k = S();
     const card = pickCard(c.body || c.near);
@@ -519,7 +525,7 @@ G.Crew = (function () {
     G.Save.addXp(card.xp);
     G.Save.save();
     showCard(card, true);
-    const n = Object.keys(k.cards).length;
+    const n = regularCount();
     setTimeout(function () {
       if (n >= 5) award('card_collector');
       if (n >= 20) award('card_master');
@@ -584,7 +590,7 @@ G.Crew = (function () {
       G.Audio.play('click');
       el.remove();
       if (isNew) {
-        const total = Object.keys(S().cards).length;
+        const total = regularCount();
         G.UI.notify('Card added to your Log \u00b7 ' + total + ' collected \u00b7 +' + (card.xp || 10) + ' XP', 'good');
         G.UI.koraSay('Brilliant! ' + card.title + ' is now in your card collection. Station operators may ask about it, so read it carefully!');
       }
@@ -615,7 +621,7 @@ G.Crew = (function () {
     const k = S(), ids = Object.keys(k.cards);
     const total = G.KNOWLEDGE.length;
     let h = '<div class="cards-wrap"><div class="cards-head">' +
-      '<span><b>' + ids.length + '</b> / ' + total + '+ cards</span>' +
+      '<span><b>' + ids.filter(function (i) { return !k.cards[i].secret; }).length + '</b> / ' + total + '+ cards</span>' +
       '<span><b>' + k.passes + '</b> Fun Passes</span>' +
       '<span>Race best <b>' + (k.raceBest ? k.raceBest.toFixed(1) + 's' : '\u2014') + '</b></span>' +
       '<span>Star Catcher best <b>' + (k.catchBest || 0) + '</b></span></div>';
@@ -739,7 +745,7 @@ G.Crew = (function () {
   return {
     update: update, interact: interact, markers: markers,
     decorateStation: decorateStation, cardsHtml: cardsHtml, bindGallery: bindGallery,
-    cardCount: function () { return Object.keys(S().cards).length; },
+    cardCount: regularCount,
     state: S, award: award, portrait: portrait
   };
 })();

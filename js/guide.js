@@ -112,10 +112,37 @@ window.G = window.G || {};
 
   // ---------- Rover coach (first drive) ----------
   function coachState() { const st = G.Save.get(); if (!st.coach) st.coach = {}; return st.coach; }
-  let cSteps = null, cIdx = 0, cLayer = null, cPoll = null, cRef = null;
+  let cSteps = null, cIdx = 0, cLayer = null, cPoll = null, cRef = null, cMode = 'rover';
+  function cpos() { return cMode === 'ship' ? G.Ship.position() : G.Rover.position(); }
+  function chead() { return cMode === 'ship' ? G.Ship.heading() : G.Rover.heading(); }
+  function shipSteps() {
+    const moved = function () { const p = cpos(); return cRef && Math.hypot(p.x - cRef.x, p.y - cRef.y, p.z - cRef.z) > 4; };
+    const turned = function () { return cRef && Math.abs(chead() - cRef.h) > 0.3; };
+    if (touch()) return [
+      { sel: '#thrust', text: 'Slide THRUST up to fly forward.', say: 'Slide the thrust bar up to fly forward.', check: moved },
+      { drag: true, text: 'Drag the screen to steer and look around.', say: 'Drag your finger on the screen to steer the ship.', check: turned },
+      { sel: '#m-up', text: 'UP and DOWN make the ship rise or sink.', say: 'Use up and down to rise or sink.' },
+      { sel: '#m-boost', text: 'Hold BOOST to go faster for long trips.', say: 'Hold boost to fly faster.' },
+      { sel: '#m-brake', text: 'Tap STOP to brake and hold still.', say: 'Tap stop to brake.' },
+      { sel: '#m-scan', text: 'Close to a planet, satellite or station? Tap SCAN to study it.', say: 'When you are close to something, tap scan.' },
+      { sel: '#m-act', text: 'Tap GO near a station to dock, or near a world to land.', say: 'Tap go near a station to dock, or near a world to land.' },
+      { sel: '#radar-corner', text: 'Tap the radar to open the MAP and choose a destination.', say: 'Tap the radar to open the map and pick a destination.' },
+      { sel: '#m-home', text: 'Lost? HOME flies you back to Earth.', say: 'If you get lost, tap home to return to Earth.' }
+    ];
+    return [
+      { keys: ['W', 'S'], text: 'Press W for thrust, S to slow down.', say: 'Press W to fly forward.', check: moved },
+      { keys: ['A', 'D'], text: 'Use A and D, or drag the mouse, to steer.', say: 'Use A and D or drag the mouse to steer.', check: turned },
+      { keys: ['R', 'F'], text: 'R rises and F sinks the ship.', say: 'R rises and F sinks.' },
+      { keys: ['Shift'], text: 'Hold SHIFT to boost, SPACE to brake.', say: 'Hold shift to boost, and space to brake.' },
+      { sel: '#btn-scan', keys: ['Q'], text: 'Press Q near an object to scan it.', say: 'Press Q near an object to scan it.' },
+      { keys: ['E'], text: 'Press E near a station to dock or a world to land.', say: 'Press E near a station to dock, or near a world to land.' },
+      { sel: '#radar-corner', keys: ['M'], text: 'Press M to open the map and choose a destination.', say: 'Press M to open the map.' },
+      { keys: ['B'], text: 'Press B to fly back to Earth any time.', say: 'Press B to return to Earth.' }
+    ];
+  }
   function roverSteps() {
-    const moved = function () { const p = G.Rover.position(); return cRef && Math.hypot(p.x - cRef.x, p.z - cRef.z) > 3; };
-    const turned = function () { return cRef && Math.abs(G.Rover.heading() - cRef.h) > 0.35; };
+    const moved = function () { const p = cpos(); return cRef && Math.hypot(p.x - cRef.x, p.z - cRef.z) > 3; };
+    const turned = function () { return cRef && Math.abs(chead() - cRef.h) > 0.35; };
     if (touch()) return [
       { sel: '#thrust', text: 'Slide THRUST up to drive forward.', say: 'Slide the thrust bar up to drive forward.', check: moved },
       { sel: '#touch-steer', text: 'Hold LEFT or RIGHT to turn. REVERSE backs up.', say: 'Hold left or right to turn the rover.', check: turned },
@@ -135,7 +162,12 @@ window.G = window.G || {};
   }
   function coachRover() {
     if (coachState().rover || cLayer) return false;
-    setTimeout(function () { if (G.Game.isLanded() && !cLayer) beginCoach(roverSteps()); }, 2800);
+    setTimeout(function () { if (G.Game.isLanded() && !cLayer) { cMode = 'rover'; beginCoach(roverSteps()); } }, 2800);
+    return true;
+  }
+  function coachShip() {
+    if (coachState().ship || cLayer) return false;
+    setTimeout(function () { if (!G.Game.isLanded() && !cLayer && G.Game.mode === 'play') { cMode = 'ship'; beginCoach(shipSteps()); } }, 3500);
     return true;
   }
   function beginCoach(list) {
@@ -152,8 +184,8 @@ window.G = window.G || {};
   }
   function showCoach() {
     const s = cSteps[cIdx];
-    const p = G.Rover.position();
-    cRef = { x: p.x, z: p.z, h: G.Rover.heading(), t: performance.now() };
+    const p = cpos();
+    cRef = { x: p.x, y: p.y, z: p.z, h: chead(), t: performance.now() };
     cLayer.querySelector('.ch-step').textContent = (cIdx + 1) + ' / ' + cSteps.length;
     cLayer.querySelector('.ch-text').textContent = s.text;
     cLayer.querySelector('.ch-keys').innerHTML = (s.keys || []).map(function (k) { return '<kbd>' + k + '</kbd>'; }).join('');
@@ -166,7 +198,7 @@ window.G = window.G || {};
     clearInterval(cPoll);
     cPoll = setInterval(function () {
       if (!cLayer) return;
-      if (!G.Game.isLanded()) { endCoach(false); return; }
+      if (G.Game.isLanded() !== (cMode === 'rover')) { endCoach(false); return; }
       if (s.check && performance.now() - cRef.t > 900 && s.check()) { G.Audio.play('success'); nextCoach(); }
     }, 250);
   }
@@ -208,12 +240,12 @@ window.G = window.G || {};
     if (cLayer) cLayer.remove();
     cLayer = null;
     if (finished) {
-      coachState().rover = true;
+      coachState()[cMode] = true;
       G.Save.save();
-      G.UI.koraSay('Training complete! Now follow the amber light beams to meet astronauts and collect knowledge cards.');
+      G.UI.koraSay(cMode === 'ship' ? 'Flight training complete! Open the map with the radar and pick your first destination. Mission Control is waiting.' : 'Training complete! Now follow the amber light beams to meet astronauts and collect knowledge cards.');
     }
   }
-  G.Coach = { rover: coachRover, active: function () { return !!cLayer; }, reset: function () { coachState().rover = false; } };
+  G.Coach = { rover: coachRover, ship: coachShip, stop: function () { endCoach(false); }, active: function () { return !!cLayer; }, reset: function () { coachState().rover = false; coachState().ship = false; } };
 
   // ---------- Credits ----------
   function openCredits() {

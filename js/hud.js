@@ -400,16 +400,29 @@ G.HUD = (function () {
     const prompt = document.createElement('div');
     prompt.className = 'boot-prompt';
     prompt.textContent = (G.Touch && G.Touch.enabled() ? 'TAP' : 'CLICK') + ' TO POWER ON';
-    log.appendChild(prompt);
+    scr.appendChild(prompt);
     scr.onclick = function () {
-      if (started) { finish(); return; }
+      if (started) return;
       started = true;
       prompt.remove();
       G.Audio.unlock();
       if (G.Touch && G.Touch.fullscreen) G.Touch.fullscreen();
       G.Audio.play('powerUp');
       setTimeout(run, 650);
+      warmUp();
     };
+    // Compile shaders and fetch live data while the boot animation plays, so the menu and first flight stay smooth.
+    function warmUp() {
+      setTimeout(function () {
+        try { G.World.renderer.compile(G.World.scene, G.World.camera); } catch (e) { }
+      }, 400);
+      ['sun', 'earth', 'moon', 'mars', 'jupiter', 'saturn'].forEach(function (id, n) {
+        setTimeout(function () {
+          const t = G.Codex.titleFor(id);
+          if (t) G.Codex.summary(t).then(function (d) { if (d && d.thumb) { const im = new Image(); im.src = d.thumb; } });
+        }, 800 + n * 500);
+      });
+    }
     const linkP = G.Codex.ping();
     const bc = document.querySelector('#boot-kora canvas');
     let buildT0 = 0, koraStarted = false, koraDone = false;
